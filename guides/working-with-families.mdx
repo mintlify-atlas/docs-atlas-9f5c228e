@@ -1,0 +1,519 @@
+---
+title: 'Working with Families'
+description: 'Family relationship tracking and management in CongregationKit'
+icon: 'people-group'
+---
+
+CongregationKit provides comprehensive family management capabilities, including family CRUD operations, relationship tracking, and family tree building.
+
+## Family Handler Overview
+
+The `FamiliesHandler` protocol provides methods for:
+- Fetching and managing family units
+- Creating and tracking member relationships
+- Building family trees
+- Suggesting potential relationships based on heuristics
+
+<Note>
+  Family functionality requires additional Salesforce configuration. Contact your administrator if you encounter permission errors.
+</Note>
+
+## Basic Family Operations
+
+### Fetching Families
+
+```swift
+import CongregationKit
+
+// Note: Families handler would be accessed via congregation.families
+// (This assumes the handler is exposed in CongregationKit)
+
+// Fetch families with pagination
+let response = try await familiesHandler.fetchAll(
+    pageNumber: 1,
+    pageSize: 20
+)
+
+for family in response.families {
+    print("Family: \(family.familyName ?? "Unknown")")
+    print("Head of Family: \(family.headOfFamily?.rawValue ?? "N/A")")
+    print("Address: \(family.address ?? "N/A")")
+}
+
+// Check pagination metadata
+if let metadata = response.metadata {
+    print("Page \(metadata.page) of \(metadata.totalPages)")
+    print("Total families: \(metadata.total)")
+    print("Has next page: \(metadata.hasNextPage)")
+}
+```
+
+### Fetching a Single Family
+
+```swift
+guard let familyId = FamilyID(rawValue: "FAM001") else {
+    print("Invalid family ID")
+    return
+}
+
+let family = try await familiesHandler.fetch(id: familyId)
+print("Family Name: \(family.familyName ?? "Unknown")")
+print("Home Phone: \(family.homePhone ?? "N/A")")
+print("Notes: \(family.notes ?? "None")")
+```
+
+### Fetching Family Members
+
+```swift
+let familyId = FamilyID(rawValue: "FAM001")!
+
+// Get all members in the family
+let members = try await familiesHandler.fetchMembers(familyId: familyId)
+
+for member in members {
+    print("Member: \(member.memberName ?? "Unknown")")
+    print("Role: Based on relationships")
+}
+```
+
+### Fetching Detailed Family Information
+
+```swift
+let familyId = FamilyID(rawValue: "FAM001")!
+
+// Get comprehensive family info with statistics
+let familyInfo = try await familiesHandler.fetchFamilyInfo(familyId: familyId)
+
+// Access rich family data (structure depends on FamilyInfo model)
+print("Family information loaded successfully")
+```
+
+## Managing Families
+
+<Tabs>
+  <Tab title="Create Family">
+    ```swift
+    let newFamily = Family(
+        id: FamilyID(rawValue: "FAM_NEW")!,
+        familyName: "Smith Family",
+        headOfFamily: MemberID(rawValue: "TKT123456")!,
+        address: "123 Main Street, City, State 12345",
+        homePhone: "555-0123",
+        notes: "New family joined in 2024"
+    )
+    
+    let createdFamily = try await familiesHandler.createFamily(newFamily)
+    print("Created family: \(createdFamily.familyName ?? "Unknown")")
+    print("Family ID: \(createdFamily.id.rawValue)")
+    ```
+  </Tab>
+
+  <Tab title="Update Family">
+    ```swift
+    // Fetch existing family
+    var family = try await familiesHandler.fetch(id: familyId)
+    
+    // Update family information
+    let updatedFamily = Family(
+        id: family.id,
+        familyName: "Smith-Johnson Family",
+        headOfFamily: family.headOfFamily,
+        address: "456 Oak Avenue, City, State 12345",
+        homePhone: family.homePhone,
+        notes: "Updated address in 2024"
+    )
+    
+    let result = try await familiesHandler.updateFamily(updatedFamily)
+    print("Family updated successfully")
+    ```
+  </Tab>
+
+  <Tab title="Delete Family">
+    ```swift
+    let familyId = FamilyID(rawValue: "FAM001")!
+    
+    try await familiesHandler.deleteFamily(id: familyId)
+    print("Family deleted successfully")
+    ```
+  </Tab>
+</Tabs>
+
+## Family Membership Management
+
+### Adding Members to Families
+
+```swift
+let memberId = MemberID(rawValue: "TKT123456")!
+let familyId = FamilyID(rawValue: "FAM001")!
+
+// Add member with specific role
+let membership = try await familiesHandler.addMemberToFamily(
+    memberId: memberId,
+    familyId: familyId,
+    role: .parent
+)
+
+print("Added member to family with role: \(membership.role.displayName)")
+```
+
+### Removing Members from Families
+
+```swift
+let memberId = MemberID(rawValue: "TKT123456")!
+let familyId = FamilyID(rawValue: "FAM001")!
+
+try await familiesHandler.removeMemberFromFamily(
+    memberId: memberId,
+    familyId: familyId
+)
+
+print("Member removed from family")
+```
+
+### Updating Member Roles
+
+```swift
+let memberId = MemberID(rawValue: "TKT123456")!
+let familyId = FamilyID(rawValue: "FAM001")!
+
+let updatedMembership = try await familiesHandler.updateMemberRole(
+    memberId: memberId,
+    familyId: familyId,
+    newRole: .child
+)
+
+print("Updated role to: \(updatedMembership.role.displayName)")
+```
+
+## Relationship Management
+
+### Fetching Member Relationships
+
+```swift
+let memberId = MemberID(rawValue: "TKT123456")!
+
+// Get all relationships for a member
+let relationships = try await familiesHandler.fetchRelationships(memberId: memberId)
+
+for relationship in relationships {
+    print("Type: \(relationship.relationshipType.displayName)")
+    print("Target: \(relationship.targetMemberId.rawValue)")
+    print("Active: \(relationship.isActive)")
+    
+    if let duration = relationship.durationInYears {
+        print("Duration: \(duration) years")
+    }
+}
+```
+
+### Creating Relationships
+
+<Steps>
+  <Step title="Create Single Relationship">
+    ```swift
+    let relationship = MemberRelationship(
+        id: RelationshipID(rawValue: "REL001")!,
+        sourceMemberId: MemberID(rawValue: "TKT123456")!,  // Parent
+        targetMemberId: MemberID(rawValue: "TKT789012")!,  // Child
+        relationshipType: .parent,
+        startDate: Date(),
+        isPrimary: true,
+        notes: "Biological parent"
+    )
+    
+    let created = try await familiesHandler.createRelationship(relationship)
+    print("Created relationship: \(created.relationshipType.displayName)")
+    ```
+  </Step>
+
+  <Step title="Create Bidirectional Relationship">
+    Create both directions automatically (Parent → Child and Child → Parent):
+
+    ```swift
+    let primaryRelationship = MemberRelationship(
+        id: RelationshipID(rawValue: "REL001")!,
+        sourceMemberId: MemberID(rawValue: "TKT123456")!,  // Parent
+        targetMemberId: MemberID(rawValue: "TKT789012")!,  // Child
+        relationshipType: .parent,
+        startDate: Date(),
+        isPrimary: true
+    )
+    
+    let (primary, inverse) = try await familiesHandler.createBidirectionalRelationship(
+        primaryRelationship
+    )
+    
+    print("Primary: \(primary.relationshipType.displayName)")     // Parent
+    print("Inverse: \(inverse.relationshipType.displayName)")     // Child
+    ```
+  </Step>
+</Steps>
+
+### Relationship Types
+
+CongregationKit supports comprehensive relationship types:
+
+<AccordionGroup>
+  <Accordion title="Immediate Family">
+    ```swift
+    // Common family relationships
+    RelationshipType.spouse         // Husband/Wife
+    RelationshipType.parent         // Parent → Child
+    RelationshipType.child          // Child → Parent
+    RelationshipType.sibling        // Brother/Sister
+    ```
+  </Accordion>
+
+  <Accordion title="Extended Family">
+    ```swift
+    // Extended family relationships
+    RelationshipType.grandparent    // Grandparent → Grandchild
+    RelationshipType.grandchild     // Grandchild → Grandparent
+    RelationshipType.uncle          // Uncle → Nephew/Niece
+    RelationshipType.aunt           // Aunt → Nephew/Niece
+    RelationshipType.nephew         // Nephew → Uncle/Aunt
+    RelationshipType.niece          // Niece → Uncle/Aunt
+    RelationshipType.cousin         // Cousin (bidirectional)
+    ```
+  </Accordion>
+
+  <Accordion title="In-Laws">
+    ```swift
+    // In-law relationships
+    RelationshipType.fatherInLaw
+    RelationshipType.motherInLaw
+    RelationshipType.sonInLaw
+    RelationshipType.daughterInLaw
+    RelationshipType.brotherInLaw
+    RelationshipType.sisterInLaw
+    ```
+  </Accordion>
+
+  <Accordion title="Spiritual & Ministry">
+    ```swift
+    // Spiritual relationships
+    RelationshipType.mentor             // Mentor → Mentee
+    RelationshipType.mentee             // Mentee → Mentor
+    RelationshipType.discipler          // Discipler → Disciple
+    RelationshipType.disciple           // Disciple → Discipler
+    RelationshipType.prayerPartner      // Prayer partner (bidirectional)
+    RelationshipType.accountabilityPartner
+    
+    // Ministry relationships
+    RelationshipType.lifeGroupLeader    // Leader → Member
+    RelationshipType.lifeGroupMember    // Member → Leader
+    RelationshipType.ministryLeader
+    RelationshipType.ministryTeamMember
+    ```
+  </Accordion>
+
+  <Accordion title="Guardianship">
+    ```swift
+    // Legal guardianship
+    RelationshipType.guardian       // Guardian → Ward
+    RelationshipType.ward          // Ward → Guardian
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Working with Relationship Properties
+
+```swift
+let relationship = MemberRelationship(
+    id: RelationshipID(rawValue: "REL001")!,
+    sourceMemberId: MemberID(rawValue: "TKT123456")!,
+    targetMemberId: MemberID(rawValue: "TKT789012")!,
+    relationshipType: .spouse,
+    startDate: Date(),
+    isPrimary: true
+)
+
+// Get inverse relationship type
+print(relationship.relationshipType.inverse)  // .spouse (symmetrical)
+
+// Check if relationship is symmetrical
+print(relationship.relationshipType.isSymmetrical)  // true
+
+// Get relationship category
+print(relationship.relationshipType.category)  // .marriage
+
+// Check if relationship is active
+print(relationship.isActive)  // true (no end date)
+
+// Get duration
+if let years = relationship.durationInYears {
+    print("Relationship duration: \(years) years")
+}
+```
+
+### Updating and Deleting Relationships
+
+<Tabs>
+  <Tab title="Update Relationship">
+    ```swift
+    var relationship = try await familiesHandler.fetchRelationships(
+        memberId: memberId
+    ).first!
+    
+    // Update relationship properties
+    let updated = MemberRelationship(
+        id: relationship.id,
+        sourceMemberId: relationship.sourceMemberId,
+        targetMemberId: relationship.targetMemberId,
+        relationshipType: relationship.relationshipType,
+        startDate: relationship.startDate,
+        endDate: Date(),  // Mark as ended
+        isPrimary: relationship.isPrimary,
+        notes: "Relationship ended in 2024"
+    )
+    
+    let result = try await familiesHandler.updateRelationship(updated)
+    print("Relationship updated")
+    ```
+  </Tab>
+
+  <Tab title="Delete Relationship">
+    ```swift
+    let relationshipId = RelationshipID(rawValue: "REL001")!
+    
+    try await familiesHandler.deleteRelationship(id: relationshipId)
+    print("Relationship deleted")
+    ```
+  </Tab>
+</Tabs>
+
+## Relationship Discovery
+
+### Auto-Suggest Relationships
+
+CongregationKit can automatically suggest potential relationships based on heuristics:
+
+```swift
+let member = try await congregation.members.fetch(id: memberId)
+
+// Get suggested relationships with default options
+let suggestions = try await familiesHandler.suggestRelationships(for: member)
+
+for suggestion in suggestions {
+    print("Suggested: \(suggestion.suggestedMember.memberName ?? "Unknown")")
+    print("Type: \(suggestion.relationshipType.displayName)")
+    print("Confidence: \(Int(suggestion.confidence * 100))%")
+    print("Reason: \(suggestion.reason)")
+}
+```
+
+### Custom Suggestion Options
+
+```swift
+// Configure suggestion algorithm
+let options = RelationshipSuggestionOptions(
+    minimumConfidence: 0.7,           // 70% confidence threshold
+    includeAddressMatching: true,     // Match by address
+    includeNameMatching: true,        // Match by last name
+    includeAgeAnalysis: true,         // Analyze age differences
+    maxSuggestions: 5                 // Limit to top 5
+)
+
+let suggestions = try await familiesHandler.suggestRelationships(
+    for: member,
+    options: options
+)
+
+print("Found \(suggestions.count) high-confidence suggestions")
+```
+
+## Building Family Trees
+
+### Tree from Member
+
+Build a family tree starting from a specific member:
+
+```swift
+let memberId = MemberID(rawValue: "TKT123456")!
+
+// Build tree with member as root
+let familyTree = try await familiesHandler.buildFamilyTree(startingFrom: memberId)
+
+// Navigate the tree structure
+print("Root: \(familyTree.rootMember.memberName ?? "Unknown")")
+
+for parent in familyTree.parents {
+    print("Parent: \(parent.memberName ?? "Unknown")")
+}
+
+for child in familyTree.children {
+    print("Child: \(child.memberName ?? "Unknown")")
+}
+
+for sibling in familyTree.siblings {
+    print("Sibling: \(sibling.memberName ?? "Unknown")")
+}
+```
+
+### Tree from Family ID
+
+Build a complete family tree for a family unit:
+
+```swift
+let familyId = FamilyID(rawValue: "FAM001")!
+
+// Build tree for entire family
+let familyTree = try await familiesHandler.buildFamilyTree(forFamily: familyId)
+
+// Access family members by relationship
+print("Family tree built successfully")
+```
+
+## Error Handling
+
+```swift
+do {
+    let relationships = try await familiesHandler.fetchRelationships(memberId: memberId)
+    print("Found \(relationships.count) relationships")
+} catch {
+    print("Error fetching relationships: \(error.localizedDescription)")
+}
+
+// Handle specific errors
+do {
+    let family = try await familiesHandler.fetch(id: familyId)
+} catch FamilyError.familyNotFound {
+    print("Family not found")
+} catch FamilyError.invalidFamilyID {
+    print("Invalid family ID format")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Bidirectional Relationships" icon="arrows-left-right">
+    Always create bidirectional relationships to maintain data integrity and enable navigation in both directions.
+  </Card>
+  
+  <Card title="Set Primary Relationships" icon="star">
+    Mark the most important relationship of each type as primary for easy identification.
+  </Card>
+  
+  <Card title="Add Relationship Notes" icon="note">
+    Include notes for special circumstances like adoptions, guardianships, or complex family situations.
+  </Card>
+  
+  <Card title="Track Dates" icon="calendar">
+    Record start and end dates for relationships to maintain historical accuracy.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fetching Members" icon="users" href="/guides/fetching-members">
+    Learn how to fetch and filter member data
+  </Card>
+  
+  <Card title="Managing Seekers" icon="user-plus" href="/guides/managing-seekers">
+    Learn how to manage visitors and seekers
+  </Card>
+</CardGroup>

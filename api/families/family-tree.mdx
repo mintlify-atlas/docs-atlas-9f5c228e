@@ -1,0 +1,384 @@
+---
+title: FamilyTree
+description: Hierarchical representation of family relationships for visualization
+icon: sitemap
+---
+
+## Overview
+
+The `FamilyTree` struct provides a graph-based view of family relationships, supporting tree visualization, relationship navigation, and genealogical analysis. It represents families as a hierarchical structure with nodes (members) and edges (relationships).
+
+## Type Definition
+
+```swift
+public struct FamilyTree: Codable, Sendable
+```
+
+## Properties
+
+<ResponseField name="rootMember" type="Member" required>
+  The root member of the family tree (typically the oldest generation).
+</ResponseField>
+
+<ResponseField name="nodes" type="[FamilyTreeNode]" required>
+  All nodes in the family tree.
+</ResponseField>
+
+<ResponseField name="edges" type="[FamilyTreeEdge]" required>
+  All edges (relationships) in the family tree.
+</ResponseField>
+
+## Computed Properties
+
+<ResponseField name="generationCount" type="Int">
+  Number of generations in the tree.
+</ResponseField>
+
+<ResponseField name="minGeneration" type="Int">
+  The minimum generation number.
+</ResponseField>
+
+<ResponseField name="maxGeneration" type="Int">
+  The maximum generation number.
+</ResponseField>
+
+<ResponseField name="memberCount" type="Int">
+  Total number of members in the tree.
+</ResponseField>
+
+<ResponseField name="relationshipCount" type="Int">
+  Total number of relationships in the tree.
+</ResponseField>
+
+## Initializer
+
+```swift
+public init(
+    rootMember: Member,
+    nodes: [FamilyTreeNode],
+    edges: [FamilyTreeEdge]
+)
+```
+
+### Parameters
+
+- `rootMember`: The root member of the tree
+- `nodes`: All tree nodes
+- `edges`: All tree edges
+
+## Methods
+
+### nodes(inGeneration:)
+
+Gets all nodes in a specific generation.
+
+```swift
+public func nodes(inGeneration generation: Int) -> [FamilyTreeNode]
+```
+
+#### Parameters
+
+- `generation`: The generation number (0 = root generation)
+
+#### Returns
+
+Array of nodes in that generation.
+
+#### Example
+
+```swift
+let tree = try await congregation.families.buildFamilyTree(
+    startingFrom: memberId
+)
+
+// Get root generation (grandparents)
+let generation0 = tree.nodes(inGeneration: 0)
+print("Grandparents: \(generation0.count)")
+
+// Get first descendant generation (parents)
+let generation1 = tree.nodes(inGeneration: 1)
+print("Parents: \(generation1.count)")
+
+// Get second descendant generation (children)
+let generation2 = tree.nodes(inGeneration: 2)
+print("Children: \(generation2.count)")
+```
+
+### edges(from:)
+
+Gets all edges originating from a specific member.
+
+```swift
+public func edges(from memberId: MemberID) -> [FamilyTreeEdge]
+```
+
+#### Parameters
+
+- `memberId`: The source member's ID
+
+#### Returns
+
+Array of edges from that member.
+
+#### Example
+
+```swift
+let parentEdges = tree.edges(from: parentMemberId)
+for edge in parentEdges {
+    print("\(edge.relationshipType.displayName) to \(edge.to)")
+}
+```
+
+### edges(to:)
+
+Gets all edges pointing to a specific member.
+
+```swift
+public func edges(to memberId: MemberID) -> [FamilyTreeEdge]
+```
+
+#### Parameters
+
+- `memberId`: The target member's ID
+
+#### Returns
+
+Array of edges to that member.
+
+#### Example
+
+```swift
+let childEdges = tree.edges(to: childMemberId)
+for edge in childEdges {
+    print("\(edge.relationshipType.displayName) from \(edge.from)")
+}
+```
+
+### node(for:)
+
+Finds a node by member ID.
+
+```swift
+public func node(for memberId: MemberID) -> FamilyTreeNode?
+```
+
+#### Parameters
+
+- `memberId`: The member's ID
+
+#### Returns
+
+The tree node if found.
+
+#### Example
+
+```swift
+if let node = tree.node(for: memberId) {
+    print("Generation: \(node.generation)")
+    print("Position: \(node.position)")
+    print("Name: \(node.member.memberName ?? "Unknown")")
+}
+```
+
+## Example Usage
+
+### Building a Family Tree
+
+```swift
+let congregation = CongregationKit(auth: auth)
+
+// Build tree from a specific member
+let tree = try await congregation.families.buildFamilyTree(
+    startingFrom: MemberID(rawValue: "TKT1234")!
+)
+
+print("Family Tree Statistics:")
+print("- Generations: \(tree.generationCount)")
+print("- Total members: \(tree.memberCount)")
+print("- Total relationships: \(tree.relationshipCount)")
+print("- Generation range: \(tree.minGeneration)...\(tree.maxGeneration)")
+```
+
+### Navigating Generations
+
+```swift
+// Iterate through all generations
+for generation in tree.minGeneration...tree.maxGeneration {
+    let members = tree.nodes(inGeneration: generation)
+    print("Generation \(generation): \(members.count) members")
+    
+    for node in members {
+        let name = node.member.memberName ?? "Unknown"
+        print("  - \(name) (position: \(node.position))")
+    }
+}
+```
+
+### Analyzing Relationships
+
+```swift
+// Find all parent-child relationships
+let parentChildEdges = tree.edges.filter { 
+    $0.relationshipType == .parent || $0.relationshipType == .child 
+}
+
+print("Parent-child relationships: \(parentChildEdges.count)")
+
+// Find all spouse relationships
+let spouseEdges = tree.edges.filter { 
+    $0.relationshipType == .spouse 
+}
+
+print("Spouse relationships: \(spouseEdges.count)")
+```
+
+### Tracing Lineage
+
+```swift
+// Find all descendants of a member
+func findDescendants(of memberId: MemberID, in tree: FamilyTree) -> [Member] {
+    var descendants: [Member] = []
+    var toProcess = [memberId]
+    
+    while let currentId = toProcess.popLast() {
+        let childEdges = tree.edges(from: currentId).filter { 
+            $0.relationshipType == .parent 
+        }
+        
+        for edge in childEdges {
+            if let node = tree.node(for: edge.to) {
+                descendants.append(node.member)
+                toProcess.append(edge.to)
+            }
+        }
+    }
+    
+    return descendants
+}
+
+let descendants = findDescendants(of: ancestorId, in: tree)
+print("Found \(descendants.count) descendants")
+```
+
+## Supporting Types
+
+### FamilyTreeNode
+
+A node in the family tree representing a single member.
+
+```swift
+public struct FamilyTreeNode: Codable, Sendable
+```
+
+<ResponseField name="member" type="Member" required>
+  The member represented by this node.
+</ResponseField>
+
+<ResponseField name="generation" type="Int" required>
+  The generation level (0 = root, negative = ancestors, positive = descendants).
+</ResponseField>
+
+<ResponseField name="position" type="Int" required>
+  Horizontal position within the generation (for layout purposes).
+</ResponseField>
+
+#### Initializer
+
+```swift
+public init(member: Member, generation: Int, position: Int)
+```
+
+#### Example
+
+```swift
+let node = FamilyTreeNode(
+    member: member,
+    generation: 0,
+    position: 0
+)
+```
+
+### FamilyTreeEdge
+
+An edge in the family tree representing a relationship.
+
+```swift
+public struct FamilyTreeEdge: Codable, Equatable, Sendable
+```
+
+<ResponseField name="from" type="MemberID" required>
+  The source member's ID (from).
+</ResponseField>
+
+<ResponseField name="to" type="MemberID" required>
+  The target member's ID (to).
+</ResponseField>
+
+<ResponseField name="relationshipType" type="RelationshipType" required>
+  The type of relationship.
+</ResponseField>
+
+#### Initializer
+
+```swift
+public init(
+    from: MemberID,
+    to: MemberID,
+    relationshipType: RelationshipType
+)
+```
+
+#### Example
+
+```swift
+let edge = FamilyTreeEdge(
+    from: MemberID(rawValue: "TKT1234")!,
+    to: MemberID(rawValue: "TKT5678")!,
+    relationshipType: .parent
+)
+```
+
+## Visualization Example
+
+### Simple Text-Based Tree
+
+```swift
+func printFamilyTree(_ tree: FamilyTree) {
+    for generation in tree.minGeneration...tree.maxGeneration {
+        let indent = String(repeating: "  ", count: generation - tree.minGeneration)
+        let nodes = tree.nodes(inGeneration: generation)
+        
+        print("\nGeneration \(generation):")
+        for node in nodes.sorted(by: { $0.position < $1.position }) {
+            let name = node.member.memberName ?? "Unknown"
+            let age = node.member.dateOfBirth?.age.map { "(\($0))" } ?? ""
+            print("\(indent)- \(name) \(age)")
+            
+            // Show relationships
+            let edges = tree.edges(from: node.member.memberId ?? MemberID(rawValue: "UNKNOWN")!)
+            for edge in edges {
+                if let targetNode = tree.node(for: edge.to) {
+                    let targetName = targetNode.member.memberName ?? "Unknown"
+                    let relType = edge.relationshipType.displayName
+                    print("\(indent)  → \(relType): \(targetName)")
+                }
+            }
+        }
+    }
+}
+
+printFamilyTree(tree)
+```
+
+## Related Types
+
+- [FamiliesHandler](/api/families/family-handler) - Protocol for building family trees
+- [RelationshipType](/api/families/relationship-types) - Relationship types
+- [Member](/api/members/member) - Member struct
+- [MemberID](/api/members/member#memberid) - Type-safe member identifier
+
+## See Also
+
+- [Building Family Trees](/guides/working-with-families)
+- [Visualizing Families](/guides/working-with-families)
+- [FamiliesHandler Protocol](/api/families/family-handler)

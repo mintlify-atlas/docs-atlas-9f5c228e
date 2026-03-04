@@ -1,0 +1,568 @@
+---
+title: Relationship Types
+description: Enums and types for defining relationships between members
+icon: link
+---
+
+## Overview
+
+This section covers the relationship type system in CongregationKit, including the `RelationshipType` enum, `RelationshipCategory`, `MemberRelationship` struct, and related types for managing connections between church members.
+
+## RelationshipType
+
+Represents the type of relationship between two members.
+
+```swift
+public enum RelationshipType: String, Codable, CaseIterable, Sendable
+```
+
+### Cases
+
+#### Immediate Family
+
+- `spouse` - "Spouse"
+- `parent` - "Parent"
+- `child` - "Child"
+- `sibling` - "Sibling"
+
+#### Extended Family
+
+- `grandparent` - "Grandparent"
+- `grandchild` - "Grandchild"
+- `uncle` - "Uncle"
+- `aunt` - "Aunt"
+- `nephew` - "Nephew"
+- `niece` - "Niece"
+- `cousin` - "Cousin"
+
+#### In-Laws
+
+- `fatherInLaw` - "Father-in-Law"
+- `motherInLaw` - "Mother-in-Law"
+- `sonInLaw` - "Son-in-Law"
+- `daughterInLaw` - "Daughter-in-Law"
+- `brotherInLaw` - "Brother-in-Law"
+- `sisterInLaw` - "Sister-in-Law"
+
+#### Guardianship
+
+- `guardian` - "Guardian"
+- `ward` - "Ward"
+
+#### Spiritual Relationships
+
+- `mentor` - "Mentor"
+- `mentee` - "Mentee"
+- `discipler` - "Discipler"
+- `disciple` - "Disciple"
+- `prayerPartner` - "Prayer Partner"
+- `accountabilityPartner` - "Accountability Partner"
+
+#### Ministry Relationships
+
+- `lifeGroupLeader` - "Life Group Leader"
+- `lifeGroupMember` - "Life Group Member"
+- `ministryLeader` - "Ministry Leader"
+- `ministryTeamMember` - "Ministry Team Member"
+
+#### Other
+
+- `other` - "Other"
+
+### Properties
+
+#### displayName
+
+A user-friendly display name for the relationship type.
+
+```swift
+public var displayName: String
+```
+
+#### inverse
+
+Returns the inverse relationship type.
+
+```swift
+public var inverse: RelationshipType
+```
+
+For example, if someone is a "Parent" to another person, that other person is a "Child" to them.
+
+#### category
+
+Returns the category of this relationship type.
+
+```swift
+public var category: RelationshipCategory
+```
+
+#### isSymmetrical
+
+Whether this relationship type is symmetrical (same inverse as itself).
+
+```swift
+public var isSymmetrical: Bool
+```
+
+### Example Usage
+
+```swift
+let type = RelationshipType.parent
+print(type.displayName) // "Parent"
+print(type.inverse) // .child
+print(type.category) // .family
+print(type.isSymmetrical) // false
+
+// Symmetrical relationships
+let spouse = RelationshipType.spouse
+print(spouse.inverse == spouse) // true
+print(spouse.isSymmetrical) // true
+
+// Use for ministry planning
+switch type {
+case .spouse:
+    print("Couple ministry opportunity")
+case .parent, .child:
+    print("Family ministry opportunity")
+case .mentor, .mentee:
+    print("Discipleship ministry opportunity")
+default:
+    break
+}
+```
+
+## RelationshipCategory
+
+Categories for grouping relationship types.
+
+```swift
+public enum RelationshipCategory: String, Codable, CaseIterable, Sendable
+```
+
+### Cases
+
+- `family` - "Family"
+- `marriage` - "Marriage"
+- `spiritual` - "Spiritual"
+- `ministry` - "Ministry"
+- `other` - "Other"
+
+### Properties
+
+```swift
+public var displayName: String
+```
+
+### Example
+
+```swift
+let category = RelationshipCategory.spiritual
+print(category.displayName) // "Spiritual"
+
+// Filter relationships by category
+let spiritualTypes = RelationshipType.allCases.filter { 
+    $0.category == .spiritual 
+}
+// [.mentor, .mentee, .discipler, .disciple, .prayerPartner, .accountabilityPartner]
+```
+
+## MemberRelationship
+
+Represents a relationship between two church members.
+
+```swift
+public struct MemberRelationship: Codable, Equatable, Sendable
+```
+
+### Properties
+
+<ResponseField name="id" type="RelationshipID" required>
+  Unique identifier for this relationship.
+</ResponseField>
+
+<ResponseField name="sourceMemberId" type="MemberID" required>
+  The member ID of the source (from) member.
+</ResponseField>
+
+<ResponseField name="targetMemberId" type="MemberID" required>
+  The member ID of the target (to) member.
+</ResponseField>
+
+<ResponseField name="relationshipType" type="RelationshipType" required>
+  The type of relationship from source to target.
+</ResponseField>
+
+<ResponseField name="startDate" type="Date?">
+  When this relationship started.
+</ResponseField>
+
+<ResponseField name="endDate" type="Date?">
+  When this relationship ended (e.g., divorce, death).
+</ResponseField>
+
+<ResponseField name="isPrimary" type="Bool" required>
+  Whether this is the primary relationship of its type. For example, if a child has multiple guardians, one might be designated as primary.
+</ResponseField>
+
+<ResponseField name="notes" type="String?">
+  Additional notes about this relationship.
+</ResponseField>
+
+### Computed Properties
+
+#### isActive
+
+Whether this relationship is currently active (no end date).
+
+```swift
+public var isActive: Bool
+```
+
+#### durationInYears
+
+Duration of the relationship in years, if start date is available.
+
+```swift
+public var durationInYears: Int?
+```
+
+### Initializer
+
+```swift
+public init(
+    id: RelationshipID,
+    sourceMemberId: MemberID,
+    targetMemberId: MemberID,
+    relationshipType: RelationshipType,
+    startDate: Date? = nil,
+    endDate: Date? = nil,
+    isPrimary: Bool = false,
+    notes: String? = nil
+)
+```
+
+### Methods
+
+#### inverse(withId:)
+
+Returns the inverse relationship (swapping source and target with inverse type).
+
+```swift
+public func inverse(withId newId: RelationshipID) -> MemberRelationship
+```
+
+This is useful for creating bidirectional relationships automatically.
+
+### Example Usage
+
+```swift
+// Create a parent-child relationship
+let relationship = MemberRelationship(
+    id: RelationshipID(rawValue: "REL001")!,
+    sourceMemberId: MemberID(rawValue: "TKT1234")!,
+    targetMemberId: MemberID(rawValue: "TKT5678")!,
+    relationshipType: .parent,
+    startDate: Date(),
+    isPrimary: true,
+    notes: "Biological parent"
+)
+
+print("Type: \(relationship.relationshipType.displayName)")
+print("Inverse: \(relationship.relationshipType.inverse.displayName)")
+print("Active: \(relationship.isActive)")
+
+// Create inverse relationship
+let inverseRelationship = relationship.inverse(
+    withId: RelationshipID(rawValue: "REL002")!
+)
+
+print("Inverse type: \(inverseRelationship.relationshipType)") // .child
+```
+
+### Relationship Direction
+
+The relationship is directional from source to target. For example:
+- Source: Parent (TKT1234)
+- Target: Child (TKT5678)
+- Type: .parent means TKT1234 is the parent OF TKT5678
+
+To get the inverse relationship (TKT5678 is child OF TKT1234), use the `inverse` method.
+
+## SuggestedRelationship
+
+A suggested relationship between two members based on heuristic analysis.
+
+```swift
+public struct SuggestedRelationship: Codable, Equatable, Sendable
+```
+
+### Properties
+
+<ResponseField name="sourceMemberId" type="MemberID" required>
+  The source member's ID.
+</ResponseField>
+
+<ResponseField name="targetMemberId" type="MemberID" required>
+  The target member's ID.
+</ResponseField>
+
+<ResponseField name="suggestedType" type="RelationshipType" required>
+  The suggested relationship type.
+</ResponseField>
+
+<ResponseField name="confidence" type="Double" required>
+  Confidence score from 0.0 (low) to 1.0 (high).
+</ResponseField>
+
+<ResponseField name="reason" type="SuggestionReason" required>
+  The reason for this suggestion.
+</ResponseField>
+
+<ResponseField name="additionalContext" type="String?">
+  Additional context or evidence for the suggestion.
+</ResponseField>
+
+### Computed Properties
+
+```swift
+public var isHighConfidence: Bool     // >= 0.8
+public var isMediumConfidence: Bool   // 0.5 to 0.8
+public var isLowConfidence: Bool      // < 0.5
+public var confidenceLevel: String    // "High", "Medium", or "Low"
+```
+
+### Example
+
+```swift
+let suggestion = SuggestedRelationship(
+    sourceMemberId: MemberID(rawValue: "TKT1234")!,
+    targetMemberId: MemberID(rawValue: "TKT5678")!,
+    suggestedType: .spouse,
+    confidence: 0.95,
+    reason: .spouseNameMatch,
+    additionalContext: "Spouse name matches member record"
+)
+
+if suggestion.isHighConfidence {
+    print("High confidence: \(suggestion.suggestedType.displayName)")
+    print("Reason: \(suggestion.reason.description)")
+    print("Context: \(suggestion.additionalContext ?? "")")
+}
+```
+
+## SuggestionReason
+
+Reasons why a relationship was suggested.
+
+```swift
+public enum SuggestionReason: String, Codable, CaseIterable, Sendable
+```
+
+### Cases
+
+- `sameAddress` - "Same Address"
+- `sameLastName` - "Same Last Name"
+- `spouseNameMatch` - "Spouse Name Match"
+- `ageGapParentChild` - "Age Gap Suggests Parent-Child"
+- `ageGapSibling` - "Similar Age Suggests Siblings"
+- `maritalInfoMatch` - "Marital Information Match"
+- `lifeGroupConnection` - "Same Life Group"
+- `phoneNumberMatch` - "Same Phone Number"
+- `emergencyContactMatch` - "Emergency Contact Match"
+
+### Properties
+
+#### description
+
+A human-readable description of the reason.
+
+```swift
+public var description: String
+```
+
+#### detailedExplanation
+
+Detailed explanation of this reason.
+
+```swift
+public var detailedExplanation: String
+```
+
+### Example
+
+```swift
+let reason = SuggestionReason.ageGapParentChild
+print(reason.description) 
+// "Age Gap Suggests Parent-Child"
+
+print(reason.detailedExplanation)
+// "Age difference of 18-45 years suggests parent-child relationship."
+```
+
+## Supporting ID Types
+
+### RelationshipID
+
+A type-safe identifier for member relationships.
+
+```swift
+public struct RelationshipID: RawRepresentable, Codable, Hashable, Sendable
+```
+
+#### Example
+
+```swift
+if let relationshipId = RelationshipID(rawValue: "REL001") {
+    print("Valid relationship ID: \(relationshipId.rawValue)")
+}
+
+let invalidId = RelationshipID(rawValue: "") // Returns nil
+```
+
+### FamilyID
+
+A type-safe identifier for family units.
+
+```swift
+public struct FamilyID: RawRepresentable, Codable, Hashable, Sendable
+```
+
+#### Example
+
+```swift
+if let familyId = FamilyID(rawValue: "FAM001") {
+    print("Valid family ID: \(familyId.rawValue)")
+}
+
+let invalidId = FamilyID(rawValue: "") // Returns nil
+```
+
+## FamilyRole
+
+Represents the role a member plays within a family unit.
+
+```swift
+public enum FamilyRole: String, Codable, CaseIterable, Sendable
+```
+
+### Cases
+
+- `head` - "Head" (Head of Household)
+- `spouse` - "Spouse"
+- `child` - "Child"
+- `dependent` - "Dependent"
+- `other` - "Other"
+
+### Properties
+
+#### displayName
+
+```swift
+public var displayName: String
+```
+
+#### isAdultRole
+
+Whether this role typically represents an adult in the family.
+
+```swift
+public var isAdultRole: Bool
+```
+
+### Example
+
+```swift
+let role = FamilyRole.head
+print(role.displayName) // "Head of Household"
+print(role.isAdultRole) // true
+
+switch role {
+case .head:
+    print("Primary contact for family")
+case .spouse:
+    print("Co-head of household")
+case .child:
+    print("Children's ministry participant")
+case .dependent:
+    print("Extended family member")
+case .other:
+    print("Other family member")
+}
+```
+
+## FamilyMembership
+
+Represents a member's membership within a family unit.
+
+```swift
+public struct FamilyMembership: Codable, Equatable, Sendable
+```
+
+### Properties
+
+<ResponseField name="familyId" type="FamilyID" required>
+  The family this membership belongs to.
+</ResponseField>
+
+<ResponseField name="memberId" type="MemberID" required>
+  The member who belongs to this family.
+</ResponseField>
+
+<ResponseField name="role" type="FamilyRole" required>
+  The member's role within the family.
+</ResponseField>
+
+<ResponseField name="joinDate" type="Date?">
+  When the member joined this family.
+</ResponseField>
+
+<ResponseField name="leaveDate" type="Date?">
+  When the member left this family (if applicable).
+</ResponseField>
+
+<ResponseField name="isActive" type="Bool" required>
+  Whether this membership is currently active.
+</ResponseField>
+
+<ResponseField name="notes" type="String?">
+  Additional notes about this membership.
+</ResponseField>
+
+### Computed Properties
+
+#### membershipDurationInYears
+
+Duration of membership in years.
+
+```swift
+public var membershipDurationInYears: Int?
+```
+
+### Example
+
+```swift
+let membership = FamilyMembership(
+    familyId: FamilyID(rawValue: "FAM001")!,
+    memberId: MemberID(rawValue: "TKT1234")!,
+    role: .head,
+    joinDate: Date(),
+    isActive: true
+)
+
+print("Role: \(membership.role.displayName)")
+print("Active: \(membership.isActive)")
+```
+
+## Related Types
+
+- [FamiliesHandler](/api/families/family-handler) - Protocol for managing relationships
+- [Family](/api/families/family) - Family struct
+- [FamilyTree](/api/families/family-tree) - Family tree structure
+- [Member](/api/members/member) - Member struct
+
+## See Also
+
+- [Managing Relationships](/guides/working-with-families)
+- [Relationship Discovery](/guides/working-with-families)
+- [FamiliesHandler Protocol](/api/families/family-handler)

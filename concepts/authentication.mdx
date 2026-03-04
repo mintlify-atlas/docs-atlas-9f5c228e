@@ -1,0 +1,313 @@
+---
+title: Authentication
+description: Learn how to authenticate with Salesforce using OAuth 2.0 credentials in CongregationKit
+icon: key
+---
+
+## Overview
+
+CongregationKit uses **Salesforce OAuth 2.0** password grant flow to authenticate your application with Salesforce. This provides secure, token-based authentication for accessing church member data.
+
+<Note>
+  Authentication happens automatically when you initialize `CongregationKit`. You don't need to manually manage tokens or refresh logic.
+</Note>
+
+## Why Authentication Matters
+
+Proper authentication is critical for:
+
+- **Security**: Protects sensitive church member data from unauthorized access
+- **Compliance**: Ensures your application follows Salesforce security best practices
+- **Auditability**: Tracks which user account is making API requests
+- **Rate Limiting**: Prevents abuse by enforcing API usage limits per user
+
+## Creating Credentials
+
+The `SalesforceCredentials` struct holds your OAuth 2.0 credentials:
+
+```swift
+let credentials = SalesforceCredentials(
+    clientId: "your_oauth_client_id",
+    clientSecret: "your_oauth_client_secret",
+    username: "your_salesforce_username",
+    password: "your_salesforce_password"
+)
+```
+
+<ParamField path="clientId" type="string" required>
+  OAuth client ID from your Salesforce Connected App
+</ParamField>
+
+<ParamField path="clientSecret" type="string" required>
+  OAuth client secret from your Salesforce Connected App
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  Salesforce username (preferably a dedicated service account)
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  Salesforce password for the user account
+</ParamField>
+
+## Authenticating with CongregationKit
+
+Authentication happens during initialization using async/await:
+
+```swift
+import AsyncHTTPClient
+import CongregationKit
+
+// Create HTTP client
+let httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+
+// Create credentials
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+// Authenticate and initialize
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+    
+    // Now you can use the authenticated client
+    let members = try await congregation.members.fetch()
+    print("Fetched \(members.members.count) members")
+} catch SalesforceAuthError.invalidCredentials {
+    print("Invalid credentials - check your client ID, secret, username, or password")
+} catch SalesforceAuthError.networkError(let error) {
+    print("Network error during authentication: \(error)")
+} catch {
+    print("Authentication failed: \(error)")
+}
+```
+
+## Using Pre-Authenticated Tokens
+
+If you've already authenticated and have a `SalesforceAuthResponse`, you can skip the authentication step:
+
+```swift
+let authResponse = SalesforceAuthResponse(
+    accessToken: "00D...",
+    instanceUrl: "https://your-instance.salesforce.com",
+    id: "https://login.salesforce.com/id/00D.../005...",
+    tokenType: "Bearer",
+    issuedAt: "1234567890",
+    signature: "base64-encoded-signature"
+)
+
+let congregation = CongregationKit(
+    httpClient: httpClient,
+    authResponse: authResponse
+)
+```
+
+<Warning>
+  Access tokens expire after a certain time. CongregationKit does not automatically refresh tokens. You'll need to re-authenticate when tokens expire.
+</Warning>
+
+## Understanding the Auth Response
+
+After successful authentication, you receive a `SalesforceAuthResponse` containing:
+
+```swift
+public struct SalesforceAuthResponse: Codable, Sendable {
+    /// Access token for API requests
+    public let accessToken: String
+    
+    /// Salesforce instance URL for API calls
+    public let instanceUrl: String
+    
+    /// Identity URL for user information
+    public let id: String
+    
+    /// Token type (typically "Bearer")
+    public let tokenType: String
+    
+    /// Unix timestamp when signature was created
+    public let issuedAt: String
+    
+    /// HMAC-SHA256 signature for verification
+    public let signature: String
+}
+```
+
+## Error Handling
+
+CongregationKit provides comprehensive error handling through `SalesforceAuthError`:
+
+```swift
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+} catch SalesforceAuthError.invalidCredentials {
+    // Credentials are incorrect or expired
+    print("Please verify your Salesforce credentials")
+    
+} catch SalesforceAuthError.networkError(let underlyingError) {
+    // Network connectivity issues
+    print("Network error: \(underlyingError.localizedDescription)")
+    // Implement retry logic with exponential backoff
+    
+} catch SalesforceAuthError.invalidResponse {
+    // Salesforce returned unexpected data
+    print("Invalid response from Salesforce - check API compatibility")
+    
+} catch SalesforceAuthError.serverError(let message) {
+    // Salesforce server-side error
+    print("Salesforce server error: \(message)")
+    // Check Salesforce status page for outages
+    
+} catch SalesforceAuthError.rateLimitExceeded {
+    // Too many authentication requests
+    print("Rate limit exceeded - wait before retrying")
+    // Implement exponential backoff
+    
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+### Error Types
+
+<ResponseField name="invalidCredentials" type="SalesforceAuthError">
+  Invalid client ID, client secret, username, or password
+</ResponseField>
+
+<ResponseField name="networkError" type="SalesforceAuthError">
+  Network connectivity issues or timeouts (includes underlying error)
+</ResponseField>
+
+<ResponseField name="invalidResponse" type="SalesforceAuthError">
+  Salesforce returned unparseable or unexpected response data
+</ResponseField>
+
+<ResponseField name="serverError" type="SalesforceAuthError">
+  Salesforce server-side error with message
+</ResponseField>
+
+<ResponseField name="rateLimitExceeded" type="SalesforceAuthError">
+  API rate limit exceeded - implement backoff and retry
+</ResponseField>
+
+## Security Best Practices
+
+### Credential Storage
+
+<Warning>
+  Never hardcode credentials in your source code. Use environment variables or secure storage.
+</Warning>
+
+```swift
+// ✅ Good: Use environment variables
+let credentials = SalesforceCredentials(
+    clientId: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_ID"] ?? "",
+    clientSecret: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_SECRET"] ?? "",
+    username: ProcessInfo.processInfo.environment["SALESFORCE_USERNAME"] ?? "",
+    password: ProcessInfo.processInfo.environment["SALESFORCE_PASSWORD"] ?? ""
+)
+
+// ❌ Bad: Hardcoded credentials
+let credentials = SalesforceCredentials(
+    clientId: "3MVG9...",  // Don't do this!
+    clientSecret: "12345...",
+    username: "user@church.org",
+    password: "password123"
+)
+```
+
+### iOS/macOS Keychain Storage
+
+For mobile applications, use the Keychain for secure credential storage:
+
+```swift
+import Security
+
+// Store credentials in keychain
+let credentialsData = try JSONEncoder().encode(credentials)
+let query: [String: Any] = [
+    kSecClass as String: kSecClassGenericPassword,
+    kSecAttrAccount as String: "SalesforceCredentials",
+    kSecValueData as String: credentialsData
+]
+SecItemAdd(query as CFDictionary, nil)
+
+// Retrieve credentials from keychain
+var item: CFTypeRef?
+let query: [String: Any] = [
+    kSecClass as String: kSecClassGenericPassword,
+    kSecAttrAccount as String: "SalesforceCredentials",
+    kSecReturnData as String: true
+]
+if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess {
+    if let data = item as? Data {
+        let credentials = try JSONDecoder().decode(SalesforceCredentials.self, from: data)
+    }
+}
+```
+
+### Use Dedicated Service Accounts
+
+<Note>
+  Create a dedicated Salesforce user account for API access rather than using personal credentials. This provides better auditability and security.
+</Note>
+
+## Retry Logic with Exponential Backoff
+
+Implement retry logic for transient network errors:
+
+```swift
+func authenticateWithRetry(
+    credentials: SalesforceCredentials,
+    maxRetries: Int = 3
+) async throws -> CongregationKit {
+    var lastError: Error?
+    
+    for attempt in 1...maxRetries {
+        do {
+            return try await CongregationKit(
+                httpClient: httpClient,
+                credentials: credentials
+            )
+        } catch SalesforceAuthError.networkError(let error) {
+            lastError = error
+            if attempt < maxRetries {
+                // Exponential backoff: 2^attempt seconds
+                let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                try await Task.sleep(nanoseconds: delay)
+                print("Retrying authentication (attempt \(attempt + 1)/\(maxRetries))...")
+                continue
+            }
+        } catch {
+            // Don't retry on non-network errors
+            throw error
+        }
+    }
+    
+    throw lastError ?? SalesforceAuthError.networkError(
+        NSError(domain: "Unknown", code: -1)
+    )
+}
+
+// Usage
+let congregation = try await authenticateWithRetry(credentials: credentials)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Field Expansion" icon="arrows-maximize" href="/concepts/field-expansion">
+    Learn how to selectively fetch member data for better performance
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/concepts/error-handling">
+    Comprehensive guide to handling errors in CongregationKit
+  </Card>
+</CardGroup>

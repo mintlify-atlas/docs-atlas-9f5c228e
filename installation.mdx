@@ -1,0 +1,103 @@
+---
+title: Installation
+description: Install CongregationKit in your Swift project using Swift Package Manager
+---
+
+CongregationKit is a Swift package that helps you connect your app or server to Salesforce and work with church member data. It is designed for The King's Temple Church (TKT Church), but others can use it as a reference.
+
+## Requirements
+
+Before installing CongregationKit, ensure your project meets these requirements:
+
+- Swift 6.0 or later
+- macOS 13.0+ or iOS 15.0+
+- Xcode 15.0 or later
+
+## Swift Package Manager
+
+CongregationKit can be installed using Swift Package Manager, Apple's official dependency manager for Swift.
+
+### Using Package.swift
+
+Add CongregationKit to your `Package.swift` file:
+
+```swift Package.swift
+import PackageDescription
+
+let package = Package(
+    name: "YourProject",
+    platforms: [
+        .macOS(.v13),
+        .iOS(.v15),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/tktchurch/CongregationKit.git", from: "1.0.0")
+    ],
+    targets: [
+        .target(
+            name: "YourTarget",
+            dependencies: ["CongregationKit"]
+        )
+    ]
+)
+```
+
+### Using Xcode
+
+<Steps>
+  <Step title="Open Add Package Dependencies">
+    In Xcode, go to **File → Add Package Dependencies**
+  </Step>
+  
+  <Step title="Enter Repository URL">
+    Paste the repository URL:
+    ```
+    https://github.com/tktchurch/CongregationKit.git
+    ```
+  </Step>
+  
+  <Step title="Select Version">
+    Choose the version you want to use. We recommend selecting "Up to Next Major Version" with version `1.0.0`
+  </Step>
+  
+  <Step title="Add to Target">
+    Select your target and click **Add Package**
+  </Step>
+</Steps>
+
+## Dependencies
+
+CongregationKit automatically includes the following dependencies:
+
+- **AsyncHTTPClient** (1.22.0+): For making HTTP requests to Salesforce APIs
+- **SalesforceClient**: Low-level Salesforce API client (included in package)
+- **Congregation**: Core data models and types (included in package)
+
+<Note>
+  All dependencies are automatically managed by Swift Package Manager. You don't need to install them separately.
+</Note>
+
+## Verify Installation
+
+To verify that CongregationKit is installed correctly, try importing it in your Swift file:
+
+```swift
+import CongregationKit
+import AsyncHTTPClient
+
+let httpClient = HTTPClient.shared
+print("CongregationKit is ready to use!")
+```
+
+If the import succeeds without errors, you're ready to start using CongregationKit!
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Learn how to authenticate and make your first API call
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/congregationkit">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>

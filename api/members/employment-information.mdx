@@ -1,0 +1,288 @@
+---
+title: "EmploymentInformation"
+description: "Represents a member's employment information including status, organization, occupation, and sector."
+---
+
+The `EmploymentInformation` struct provides detailed employment data for church members, supporting ministry planning, demographic analysis, and professional networking within the church community.
+
+## Properties
+
+<ResponseField name="employmentStatus" type="EmploymentStatus?">
+  The member's employment status indicating their current work situation.
+  
+  **Possible values:**
+  - `employed` - Currently employed
+  - `employedAndBusiness` - Both employed and running a business
+  - `unemployed` - Currently unemployed
+  - `student` - Full-time student
+  - `homemaker` - Homemaker
+  - `retired` - Retired
+  - `selfEmployed` - Self-employed
+  - `businessPrincipal` - Business owner/principal
+  - `privateEmployed` - Private sector employment
+  - `government` - Government employment
+  - `notApplicable` - Not applicable
+  - `other` - Other status
+</ResponseField>
+
+<ResponseField name="nameOfTheOrganization" type="String?">
+  The name of the organization where the member is employed. Used for professional networking, workplace ministry opportunities, and understanding the member's professional context.
+</ResponseField>
+
+<ResponseField name="occupation" type="Occupation?">
+  The member's occupation category for broad classification.
+  
+  **Possible values:**
+  - `ministry` - Ministry work
+  - `healthCare` - Healthcare profession
+  - `defence` - Defence/military
+  - `police` - Police/law enforcement
+  - `corporate` - Corporate sector
+  - `education` - Education sector
+  - `realEstate` - Real estate
+  - `media` - Media/journalism
+  - `it` - IT/ITES
+  - `humanResource` - Human resources
+  - `banking` - Banking sector
+  - `government` - Government sector
+  - `others` - Other occupations
+  - `notApplicable` - Not applicable
+  - `other` - Other
+</ResponseField>
+
+<ResponseField name="sector" type="Sector?">
+  The member's employment sector for demographic analysis.
+  
+  **Possible values:**
+  - `governmentPublic` - Government/Public sector
+  - `privateSector` - Private sector
+  - `business` - Business ownership
+  - `privateAndBusiness` - Both private employment and business
+  - `govPublicAndBusiness` - Both government/public and business
+  - `notApplicable` - Not applicable
+</ResponseField>
+
+<ResponseField name="occupationSubCategoryEnum" type="OccupationSubCategory?">
+  The member's specific occupation subcategory for detailed classification. This provides more granular information within the occupation category (e.g., "Doctor" under Healthcare, "Software Developer" under IT).
+</ResponseField>
+
+<ResponseField name="occupationCategory" type="Occupation?">
+  The occupation category, inferred from the subcategory if not directly provided. This computed property ensures that occupation category information is always available, either directly or inferred from the subcategory.
+</ResponseField>
+
+## Example Usage
+
+### Basic Access
+
+```swift
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [.employmentInformation]
+)
+
+if let employment = member.employmentInformation {
+    // Access employment status
+    if let status = employment.employmentStatus {
+        print("Status: \(status.displayName)")
+    }
+    
+    // Access occupation information
+    if let occupation = employment.occupation {
+        print("Occupation: \(occupation.displayName)")
+    }
+    
+    if let subcategory = employment.occupationSubCategoryEnum {
+        print("Specific role: \(subcategory.displayName)")
+    }
+    
+    // Access organization and sector
+    if let org = employment.nameOfTheOrganization {
+        print("Organization: \(org)")
+    }
+    
+    if let sector = employment.sector {
+        print("Sector: \(sector.displayName)")
+    }
+}
+```
+
+### Ministry Planning Based on Employment
+
+```swift
+func suggestMinistry(for employment: EmploymentInformation) -> String? {
+    guard let status = employment.employmentStatus else { return nil }
+    
+    switch status {
+    case .student:
+        return "Youth Ministry - Campus outreach opportunities"
+    case .retired:
+        return "Senior Ministry - Mentoring and prayer team"
+    case .unemployed:
+        return "Support Ministry - Career counseling available"
+    case .employed, .selfEmployed:
+        if let occupation = employment.occupation {
+            switch occupation {
+            case .it:
+                return "Tech Team - Audio/visual/web ministry"
+            case .education:
+                return "Children's Ministry - Sunday school teaching"
+            case .healthCare:
+                return "Care Ministry - Hospital visits and support"
+            case .media:
+                return "Communication Team - Social media and content"
+            default:
+                return "General Ministry - Multiple opportunities available"
+            }
+        }
+        return "General Ministry - Multiple opportunities available"
+    default:
+        return nil
+    }
+}
+
+if let employment = member.employmentInformation,
+   let suggestion = suggestMinistry(for: employment) {
+    print("Ministry suggestion: \(suggestion)")
+}
+```
+
+### Professional Networking
+
+```swift
+// Find members in same occupation for professional networking
+func findColleagues(occupation: Occupation, in members: [Member]) -> [Member] {
+    return members.filter { member in
+        member.employmentInformation?.occupation == occupation ||
+        member.employmentInformation?.occupationCategory == occupation
+    }
+}
+
+let itProfessionals = findColleagues(occupation: .it, in: allMembers)
+print("Found \(itProfessionals.count) IT professionals")
+
+// Group by specific subcategory
+func groupBySubcategory(members: [Member]) -> [String: [Member]] {
+    var grouped: [String: [Member]] = [:]
+    
+    for member in members {
+        if let subcategory = member.employmentInformation?.occupationSubCategoryEnum {
+            let key = subcategory.displayName
+            grouped[key, default: []].append(member)
+        }
+    }
+    
+    return grouped
+}
+```
+
+### Demographic Analysis
+
+```swift
+// Analyze employment distribution
+func analyzeEmploymentDistribution(members: [Member]) {
+    var statusDistribution: [String: Int] = [:]
+    var sectorDistribution: [String: Int] = [:]
+    
+    for member in members {
+        if let status = member.employmentInformation?.employmentStatus {
+            statusDistribution[status.displayName, default: 0] += 1
+        }
+        
+        if let sector = member.employmentInformation?.sector {
+            sectorDistribution[sector.displayName, default: 0] += 1
+        }
+    }
+    
+    print("Employment Status Distribution:")
+    for (status, count) in statusDistribution.sorted(by: { $0.value > $1.value }) {
+        print("  \(status): \(count)")
+    }
+    
+    print("\nSector Distribution:")
+    for (sector, count) in sectorDistribution.sorted(by: { $0.value > $1.value }) {
+        print("  \(sector): \(count)")
+    }
+}
+```
+
+## Protocol Conformance
+
+The `Member` struct conforms to `EmploymentInformationRepresentable`, allowing direct access:
+
+```swift
+// Access through member directly
+let status = member.employmentStatus           // Same as member.employmentInformation?.employmentStatus
+let occupation = member.occupation             // Same as member.employmentInformation?.occupation
+let org = member.nameOfTheOrganization         // Same as member.employmentInformation?.nameOfTheOrganization
+let sector = member.sector                     // Same as member.employmentInformation?.sector
+```
+
+## Display Formats
+
+Enums provide multiple display formats:
+
+```swift
+if let status = member.employmentInformation?.employmentStatus {
+    print(status.displayName)           // "Employed"
+    print(status.shortDisplay)          // "Emp"
+    print(status.internationalFormat)   // "EMP"
+}
+
+if let occupation = member.employmentInformation?.occupation {
+    print(occupation.displayName)       // "IT/ITES"
+    print(occupation.shortDisplay)      // "IT"
+    print(occupation.internationalFormat) // "IT"
+}
+
+if let sector = member.employmentInformation?.sector {
+    print(sector.displayName)           // "Private"
+    print(sector.shortDisplay)          // "Private"
+    print(sector.internationalFormat)   // "PRIVATE"
+}
+```
+
+## Occupation Hierarchy
+
+The employment information supports hierarchical occupation modeling:
+
+```swift
+if let employment = member.employmentInformation {
+    // Direct occupation category
+    if let category = employment.occupation {
+        print("Category: \(category.displayName)")
+    }
+    
+    // Specific subcategory
+    if let subcategory = employment.occupationSubCategoryEnum {
+        print("Subcategory: \(subcategory.displayName)")
+        
+        // Get inferred category from subcategory
+        if let inferredCategory = employment.occupationCategory {
+            print("Inferred category: \(inferredCategory.displayName)")
+        }
+    }
+}
+```
+
+## Best Practices
+
+### Ministry Applications
+
+- **Skill Matching:** Use occupation data to match members with appropriate ministries
+- **Schedule Planning:** Consider employment status when scheduling ministry activities
+- **Professional Ministry:** Use organization data for workplace ministry opportunities
+- **Demographic Planning:** Use sector data for church-wide demographic analysis
+
+### Data Entry
+
+- **Complete Information:** Provide both category and subcategory when possible
+- **Sector Accuracy:** Use appropriate sector for demographic analysis
+- **Organization Names:** Use full organization names for professional networking
+- **Status Updates:** Keep employment status current for ministry planning
+
+## See Also
+
+- [Member](/api/members/member) - Main member struct
+- [MemberExpand](/api/members/member-expand) - How to expand employment information
+- [ContactInformation](/api/members/contact-information) - Contact details
+- [MembersHandler](/api/members/member-handler) - Fetching members with employment info

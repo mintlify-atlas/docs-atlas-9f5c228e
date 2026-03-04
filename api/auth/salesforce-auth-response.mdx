@@ -1,0 +1,110 @@
+---
+title: "SalesforceAuthResponse"
+description: "Authentication response from Salesforce OAuth 2.0"
+---
+
+## Overview
+
+The `SalesforceAuthResponse` struct encapsulates all the authentication data returned by Salesforce after successful OAuth 2.0 authentication. This includes access tokens, instance information, and security signatures for secure API communication.
+
+## Definition
+
+```swift
+public struct SalesforceAuthResponse: Codable, Sendable
+```
+
+## Properties
+
+<ResponseField name="accessToken" type="String" required>
+  Access token that acts as a session ID for making API requests. This is the primary authentication credential used for all Salesforce API calls. The token should be treated as sensitive data and stored securely.
+</ResponseField>
+
+<ResponseField name="instanceUrl" type="String" required>
+  Identifies the Salesforce instance for API calls. The base URL for all Salesforce API endpoints. This is specific to your Salesforce organization and may change between environments.
+</ResponseField>
+
+<ResponseField name="id" type="String" required>
+  Identity URL for user identification and information queries. Contains user and organization identification information that can be used to retrieve additional user metadata and permissions.
+</ResponseField>
+
+<ResponseField name="tokenType" type="String" required>
+  Token type (typically "Bearer"). Indicates the type of authentication token. For Salesforce OAuth 2.0, this is typically "Bearer" and is used in Authorization headers.
+</ResponseField>
+
+<ResponseField name="issuedAt" type="String" required>
+  When the signature was created (Unix epoch seconds). Timestamp indicating when the authentication response was created. Used for security validation and replay protection.
+</ResponseField>
+
+<ResponseField name="signature" type="String" required>
+  Base64-encoded HMAC-SHA256 signature. Cryptographic signature for verifying the authenticity of the response. Used for security validation and preventing tampering.
+</ResponseField>
+
+## JSON Mapping
+
+The struct uses custom coding keys to map OAuth 2.0 standard field names:
+
+- `access_token` → `accessToken`
+- `instance_url` → `instanceUrl`
+- `id` → `id`
+- `token_type` → `tokenType`
+- `issued_at` → `issuedAt`
+- `signature` → `signature`
+
+## Usage Example
+
+```swift
+// After successful OAuth authentication
+let authResponse = SalesforceAuthResponse(
+    accessToken: "00D...",
+    instanceUrl: "https://your-instance.salesforce.com",
+    id: "https://login.salesforce.com/id/00D.../005...",
+    tokenType: "Bearer",
+    issuedAt: "1234567890",
+    signature: "base64-encoded-signature"
+)
+
+// Use for API calls
+let headers = [
+    "Authorization": "\(authResponse.tokenType) \(authResponse.accessToken)",
+    "Content-Type": "application/json"
+]
+
+// Access instance information
+print("Instance URL: \(authResponse.instanceUrl)")
+print("User ID: \(authResponse.id)")
+```
+
+## Integration with CongregationKit
+
+```swift
+// Initialize CongregationKit with auth response
+let congregation = CongregationKit(
+    httpClient: httpClient,
+    authResponse: authResponse
+)
+
+// The auth response is automatically used for all API calls
+let members = try await congregation.members.fetchAll()
+```
+
+## Security Considerations
+
+### Token Security
+
+- **Secure Storage:** Store access tokens securely, never in plain text
+- **Token Expiration:** Monitor token expiration and refresh as needed
+- **Scope Limitation:** Use minimal required OAuth scopes
+- **HTTPS Only:** Always use HTTPS for token transmission
+
+### Signature Verification
+
+- **Timestamp Validation:** Verify `issuedAt` timestamp is recent
+- **Signature Verification:** Validate HMAC-SHA256 signature when possible
+- **Replay Protection:** Check for duplicate requests using timestamps
+
+## Data Validation
+
+- **Required Fields:** All fields are required for valid authentication
+- **URL Validation:** Instance URL must be valid HTTPS URL
+- **Token Format:** Access token must be non-empty string
+- **Timestamp Format:** Issued at timestamp must be valid Unix timestamp

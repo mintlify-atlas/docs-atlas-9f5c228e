@@ -1,0 +1,373 @@
+---
+title: 'Fetching Members'
+description: 'Learn how to fetch and filter member data using CongregationKit'
+icon: 'users'
+---
+
+The CongregationKit SDK provides powerful methods to fetch member data from Salesforce with support for pagination, filtering, and field expansion.
+
+## Basic Usage
+
+Fetch all members using the paginated `fetchAll` method:
+
+```swift
+import CongregationKit
+import AsyncHTTPClient
+
+let httpClient = HTTPClient.shared
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+let congregation = try await CongregationKit(httpClient: httpClient, credentials: credentials)
+
+// Fetch first page of members
+let response = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+print("Fetched \(response.members.count) members")
+```
+
+## Pagination
+
+<Steps>
+  <Step title="Page-Based Pagination">
+    Use `pageNumber` and `pageSize` parameters for traditional page-based pagination:
+
+    ```swift
+    // Fetch page 1 with 50 members
+    let page1 = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+    
+    // Fetch page 2
+    let page2 = try await congregation.members.fetchAll(pageNumber: 2, pageSize: 50)
+    
+    // Check pagination metadata
+    if let metadata = page1.metadata {
+        print("Page: \(metadata.page ?? 0)")
+        print("Total records: \(metadata.total ?? 0)")
+        print("Per page: \(metadata.per ?? 0)")
+    }
+    ```
+  </Step>
+
+  <Step title="Cursor-Based Pagination">
+    Use `nextPageToken` for cursor-based pagination (recommended for large datasets):
+
+    ```swift
+    var allMembers: [Member] = []
+    var nextPageToken: String? = nil
+    
+    repeat {
+        let response = try await congregation.members.fetchAll(
+            pageNumber: 1,
+            pageSize: 100,
+            nextPageToken: nextPageToken
+        )
+        
+        allMembers.append(contentsOf: response.members)
+        nextPageToken = response.metadata?.nextPageToken
+        
+        print("Fetched \(allMembers.count) members so far...")
+    } while nextPageToken != nil
+    
+    print("Total members: \(allMembers.count)")
+    ```
+  </Step>
+
+  <Step title="Fetch All Pages">
+    Iterate through all pages to fetch the complete member list:
+
+    ```swift
+    let pageSize = 100
+    var allMembers: [Member] = []
+    var pageNumber = 1
+    var totalRecords: Int? = nil
+    
+    repeat {
+        let response = try await congregation.members.fetchAll(
+            pageNumber: pageNumber,
+            pageSize: pageSize
+        )
+        
+        if totalRecords == nil {
+            totalRecords = response.metadata?.total
+        }
+        
+        allMembers.append(contentsOf: response.members)
+        
+        if response.members.isEmpty { break }
+        pageNumber += 1
+    } while allMembers.count < (totalRecords ?? Int.max)
+    
+    print("Fetched all \(allMembers.count) members")
+    ```
+  </Step>
+</Steps>
+
+## Field Expansion
+
+By default, only basic member information is returned. Use the `expanded` parameter to include additional related data:
+
+```swift
+let expanded: [MemberExpand] = [
+    .employmentInformation,
+    .contactInformation,
+    .martialInformation,
+    .discipleshipInformation
+]
+
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: expanded
+)
+
+for member in response.members {
+    // Access expanded employment information
+    if let employment = member.employmentInformation {
+        print("Occupation: \(employment.occupation?.displayName ?? "N/A")")
+        print("Organization: \(employment.nameOfTheOrganization ?? "N/A")")
+    }
+    
+    // Access expanded contact information
+    if let contact = member.contactInformation {
+        print("Email: \(contact.email ?? "N/A")")
+        print("Phone: \(contact.phoneNumber ?? "N/A")")
+        print("Address: \(contact.address ?? "N/A")")
+    }
+    
+    // Access expanded discipleship information
+    if let discipleship = member.discipleshipInformation {
+        if let baptism = discipleship.waterBaptism {
+            print("Baptized: \(baptism.received)")
+        }
+        if let serving = discipleship.serving {
+            print("Ministry: \(serving.primaryDepartment?.displayName ?? "N/A")")
+        }
+    }
+}
+```
+
+## Fetching a Single Member
+
+<Tabs>
+  <Tab title="By Member ID">
+    Fetch a specific member using their type-safe `MemberID`:
+
+    ```swift
+    // Create a MemberID (must start with "TKT")
+    guard let memberId = MemberID(rawValue: "TKT123456") else {
+        print("Invalid member ID format")
+        return
+    }
+    
+    // Fetch the member
+    let member = try await congregation.members.fetch(id: memberId)
+    print("Member: \(member.firstName ?? "") \(member.lastName ?? "")")
+    print("Email: \(member.email ?? "N/A")")
+    print("Campus: \(member.campus?.displayName ?? "N/A")")
+    ```
+  </Tab>
+
+  <Tab title="With Expanded Fields">
+    Fetch a member with expanded related information:
+
+    ```swift
+    guard let memberId = MemberID(rawValue: "TKT123456") else {
+        print("Invalid member ID")
+        return
+    }
+    
+    let expanded: [MemberExpand] = [
+        .employmentInformation,
+        .contactInformation,
+        .discipleshipInformation
+    ]
+    
+    let member = try await congregation.members.fetch(
+        id: memberId,
+        expanded: expanded
+    )
+    
+    // Full access to expanded data
+    if let employment = member.employmentInformation {
+        print("Employment Status: \(employment.employmentStatus?.displayName ?? "N/A")")
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Working with Member Data
+
+### Accessing Basic Information
+
+```swift
+let response = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+
+for member in response.members {
+    // Basic demographics
+    print("Name: \(member.memberName ?? "Unknown")")
+    print("Gender: \(member.gender?.displayName ?? "N/A")")
+    print("Campus: \(member.attendingCampus?.displayName ?? "N/A")")
+    print("Status: \(member.status?.displayName ?? "N/A")")
+    
+    // Date of birth with rich information
+    if let birthday = member.dateOfBirth {
+        print("Age: \(birthday.age)")
+        print("Birthday: \(birthday.formattedBirthday)")
+        print("Days until next birthday: \(birthday.daysUntilNextBirthday)")
+    }
+    
+    // Contact information
+    print("Phone: \(member.phone ?? "N/A")")
+    print("Life Group: \(member.lifeGroupName ?? "None")")
+}
+```
+
+### Filtering Members
+
+```swift
+let response = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 100)
+
+// Filter by campus
+let eastCampusMembers = response.members.filter { 
+    $0.campus == .eastCampus 
+}
+
+// Filter by life group participation
+let lifeGroupMembers = response.members.filter { 
+    $0.partOfLifeGroup == true 
+}
+
+// Filter by status
+let activeMembers = response.members.filter { 
+    $0.status == .regular 
+}
+
+// Filter by age
+let youngAdults = response.members.filter {
+    if let age = $0.dateOfBirth?.age {
+        return age >= 18 && age <= 30
+    }
+    return false
+}
+
+print("East Campus: \(eastCampusMembers.count)")
+print("In Life Groups: \(lifeGroupMembers.count)")
+print("Active Members: \(activeMembers.count)")
+print("Young Adults: \(youngAdults.count)")
+```
+
+## Error Handling
+
+Always handle potential errors when fetching member data:
+
+```swift
+do {
+    let response = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+    print("Successfully fetched \(response.members.count) members")
+} catch MemberError.memberNotFound {
+    print("Member not found")
+} catch MemberError.invalidMemberID {
+    print("Invalid member ID format (must start with TKT)")
+} catch MemberError.fetchFailed(let error) {
+    print("Failed to fetch members: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Member ID Validation
+
+The SDK uses type-safe `MemberID` for validation:
+
+<AccordionGroup>
+  <Accordion title="Valid Member IDs">
+    Member IDs must start with "TKT" (case-insensitive) and are automatically normalized:
+
+    ```swift
+    // Valid IDs (all normalized to "TKT123456")
+    let id1 = MemberID(rawValue: "TKT123456")  // Valid
+    let id2 = MemberID(rawValue: "tkt123456")  // Valid (normalized)
+    let id3 = MemberID(rawValue: "Tkt123456")  // Valid (normalized)
+    
+    // Access the normalized value
+    print(id1?.rawValue ?? "")  // "TKT123456"
+    ```
+  </Accordion>
+
+  <Accordion title="Invalid Member IDs">
+    Invalid formats return `nil`:
+
+    ```swift
+    let invalid1 = MemberID(rawValue: "ABC123")  // nil (wrong prefix)
+    let invalid2 = MemberID(rawValue: "TK")      // nil (too short)
+    let invalid3 = MemberID(rawValue: "123456")  // nil (no prefix)
+    
+    // Use throwing initializer for explicit error handling
+    do {
+        let memberId = try MemberID(validating: "ABC123")
+    } catch MemberError.invalidMemberID {
+        print("Invalid member ID: must start with TKT")
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Response Metadata
+
+Access pagination metadata from the response:
+
+```swift
+let response = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+
+// Check if response is paginated
+if response.isPaginated {
+    print("Response includes pagination metadata")
+}
+
+// Access pagination info
+if let (per, total, page) = response.paginationInfo {
+    print("Page \(page) of \(total / per + 1)")
+    print("Showing \(per) records per page")
+    print("Total records: \(total)")
+}
+
+// Check for errors
+if let error = response.error, error {
+    print("Error: \(response.message ?? "Unknown error")")
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Pagination" icon="list">
+    Always use pagination for large datasets to avoid memory issues and improve performance.
+  </Card>
+  
+  <Card title="Expand Selectively" icon="square-plus">
+    Only expand fields you need to reduce response size and improve performance.
+  </Card>
+  
+  <Card title="Handle Errors" icon="triangle-exclamation">
+    Always wrap fetch calls in do-catch blocks to handle network and validation errors.
+  </Card>
+  
+  <Card title="Validate IDs" icon="check">
+    Use `MemberID` type for compile-time safety and automatic validation.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Working with Families" icon="family" href="/guides/working-with-families">
+    Learn how to track and manage family relationships
+  </Card>
+  
+  <Card title="Managing Seekers" icon="user-plus" href="/guides/managing-seekers">
+    Learn how to manage visitors and seekers
+  </Card>
+</CardGroup>

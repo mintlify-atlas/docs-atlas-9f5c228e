@@ -1,0 +1,347 @@
+---
+title: "DiscipleshipInformation"
+description: "Represents a member's discipleship and spiritual journey information including baptism, courses, and ministry involvement."
+---
+
+The `DiscipleshipInformation` struct provides a comprehensive view of a member's spiritual development and discipleship journey within the church.
+
+## Core Discipleship Properties
+
+<ResponseField name="bornAgainDate" type="String?">
+  The date the member was born again. May be a full date or just a year, depending on the data available.
+</ResponseField>
+
+<ResponseField name="waterBaptism" type="WaterBaptism?">
+  Water baptism information including date and completion status.
+  
+  **Sub-properties:**
+  - `date: String?` - The date of water baptism (may be year or full date)
+  - `received: Bool?` - Whether the member has received water baptism
+</ResponseField>
+
+<ResponseField name="prayerCourse" type="PrayerCourse?">
+  Prayer course information including completion status and date.
+  
+  **Sub-properties:**
+  - `completed: Bool?` - Whether the member has completed the prayer course
+  - `date: String?` - The date the prayer course was completed
+</ResponseField>
+
+<ResponseField name="foundationCourse" type="FoundationCourse?">
+  Foundation course information including completion status.
+  
+  **Sub-properties:**
+  - `completed: Bool?` - Whether the member has completed the foundation course
+</ResponseField>
+
+<ResponseField name="bibleCourse" type="BibleCourse?">
+  The member's Bible course participation and progress. Possible values: `module1`, `module2`, `module3`, `module4`, `module5`, `module6`, `no`, `unknown`.
+</ResponseField>
+
+## Spiritual Experiences
+
+<ResponseField name="attendedLifeTransformationCamp" type="Bool?">
+  Whether the member attended a life transformation camp. `true` indicates attendance, `false` indicates no attendance, `nil` means the information is not available.
+</ResponseField>
+
+<ResponseField name="holySpiritFilling" type="Bool?">
+  Whether the member has received the Holy Spirit filling. `true` indicates they have received it, `false` indicates they haven't, `nil` means the information is not available.
+</ResponseField>
+
+<ResponseField name="missionary" type="MissionaryType?">
+  The member's missionary type and level of involvement.
+  
+  **Possible values:**
+  - `local` - Local missionary work
+  - `national` - National missionary work
+  - `international` - International missionary work
+  - `localAndNational` - Both local and national
+  - `allThree` - Local, national, and international
+  - `notApplicable` - Not applicable
+  - `unknown` - Unknown
+</ResponseField>
+
+## Communication Preferences
+
+<ResponseField name="subscribedToYoutubeChannel" type="SubscriptionStatus?">
+  Whether the member is subscribed to the YouTube channel. Possible values: `yes`, `no`, `informed`, `unknown`.
+</ResponseField>
+
+<ResponseField name="subscribedToWhatsapp" type="SubscriptionStatus?">
+  Whether the member is subscribed to WhatsApp communications. Possible values: `yes`, `no`, `informed`, `unknown`.
+</ResponseField>
+
+## Ministry Involvement
+
+<ResponseField name="serving" type="ServingInformation?">
+  Comprehensive serving and ministry involvement information.
+  
+  **Sub-properties:**
+  - `involved: MinistryInvolvement?` - Type of involvement (`fullTime`, `partTime`, `volunteers`, `no`, `unknown`)
+  - `primaryDepartment: PrimaryDepartment?` - Primary department (e.g., `worshipTeam`, `youthMinistry`, `techTeam`)
+  - `serviceCampus: String?` - Campus where the member serves
+  - `interested: InterestedToServe?` - Interest level (`yes`, `no`, `yesButLimitedTime`)
+</ResponseField>
+
+## Example Usage
+
+### Basic Spiritual Journey Tracking
+
+```swift
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [.discipleshipInformation]
+)
+
+if let discipleship = member.discipleshipInformation {
+    // Check spiritual milestones
+    if let bornAgain = discipleship.bornAgainDate {
+        print("Born again: \(bornAgain)")
+    }
+    
+    if discipleship.waterBaptism?.received == true {
+        print("Water baptized: \(discipleship.waterBaptism?.date ?? "Date unknown")")
+    }
+    
+    if discipleship.holySpiritFilling == true {
+        print("Received Holy Spirit filling")
+    }
+    
+    // Check course completions
+    if discipleship.prayerCourse?.completed == true {
+        print("Completed prayer course")
+    }
+    
+    if discipleship.foundationCourse?.completed == true {
+        print("Completed foundation course")
+    }
+    
+    if let bibleCourse = discipleship.bibleCourse {
+        print("Bible course: \(bibleCourse.displayName)")
+    }
+}
+```
+
+### Ministry Involvement Tracking
+
+```swift
+if let serving = member.discipleshipInformation?.serving {
+    // Check current involvement
+    if let involvement = serving.involved {
+        print("Ministry involvement: \(involvement.displayName)")
+        
+        switch involvement {
+        case .fullTime:
+            print("Full-time ministry staff")
+        case .partTime:
+            print("Part-time ministry involvement")
+        case .volunteers:
+            print("Active volunteer")
+        case .no:
+            print("Not currently involved")
+        case .unknown:
+            print("Involvement status unknown")
+        }
+    }
+    
+    // Check primary department
+    if let department = serving.primaryDepartment {
+        print("Serving in: \(department.displayName)")
+    }
+    
+    // Check interest level
+    if let interested = serving.interested {
+        switch interested {
+        case .yes:
+            print("Fully available to serve")
+        case .yesButLimitedTime:
+            print("Available with time constraints")
+        case .no:
+            print("Not currently available")
+        }
+    }
+    
+    // Service campus
+    if let campus = serving.serviceCampus {
+        print("Service campus: \(campus)")
+    }
+}
+```
+
+### Discipleship Progress Report
+
+```swift
+func generateDiscipleshipReport(for member: Member) -> String {
+    guard let discipleship = member.discipleshipInformation else {
+        return "No discipleship information available"
+    }
+    
+    var report = "Discipleship Progress for \(member.memberName ?? "Unknown"):\n"
+    
+    // Spiritual milestones
+    report += "\nSpiritual Milestones:\n"
+    if let bornAgain = discipleship.bornAgainDate {
+        report += "  ✓ Born Again: \(bornAgain)\n"
+    }
+    if discipleship.waterBaptism?.received == true {
+        report += "  ✓ Water Baptism\n"
+    }
+    if discipleship.holySpiritFilling == true {
+        report += "  ✓ Holy Spirit Filling\n"
+    }
+    
+    // Course completions
+    report += "\nCourse Completions:\n"
+    if discipleship.prayerCourse?.completed == true {
+        report += "  ✓ Prayer Course\n"
+    }
+    if discipleship.foundationCourse?.completed == true {
+        report += "  ✓ Foundation Course\n"
+    }
+    if let bibleCourse = discipleship.bibleCourse, bibleCourse != .no {
+        report += "  ✓ Bible Course: \(bibleCourse.displayName)\n"
+    }
+    
+    // Camp attendance
+    if discipleship.attendedLifeTransformationCamp == true {
+        report += "  ✓ Life Transformation Camp\n"
+    }
+    
+    // Ministry involvement
+    if let serving = discipleship.serving {
+        report += "\nMinistry Involvement:\n"
+        if let involvement = serving.involved {
+            report += "  Level: \(involvement.displayName)\n"
+        }
+        if let department = serving.primaryDepartment {
+            report += "  Department: \(department.displayName)\n"
+        }
+    }
+    
+    return report
+}
+
+print(generateDiscipleshipReport(for: member))
+```
+
+### Finding Members for Ministry Opportunities
+
+```swift
+// Find members interested in serving
+func findAvailableVolunteers(members: [Member]) -> [Member] {
+    return members.filter { member in
+        guard let serving = member.discipleshipInformation?.serving else {
+            return false
+        }
+        return serving.interested == .yes || serving.interested == .yesButLimitedTime
+    }
+}
+
+let available = findAvailableVolunteers(members: allMembers)
+print("Found \(available.count) members available to serve")
+
+// Find members by department
+func findMembersInDepartment(_ department: PrimaryDepartment, members: [Member]) -> [Member] {
+    return members.filter { member in
+        member.discipleshipInformation?.serving?.primaryDepartment == department
+    }
+}
+
+let worshipTeam = findMembersInDepartment(.worshipTeam, members: allMembers)
+print("Worship team members: \(worshipTeam.count)")
+
+// Find members needing discipleship courses
+func findMembersNeedingCourses(members: [Member]) -> [Member] {
+    return members.filter { member in
+        guard let discipleship = member.discipleshipInformation else {
+            return false
+        }
+        return discipleship.prayerCourse?.completed != true ||
+               discipleship.foundationCourse?.completed != true
+    }
+}
+
+let needsCourses = findMembersNeedingCourses(members: allMembers)
+print("Members needing courses: \(needsCourses.count)")
+```
+
+### Department Distribution Analysis
+
+```swift
+func analyzeDepartmentDistribution(members: [Member]) {
+    var distribution: [String: Int] = [:]
+    
+    for member in members {
+        if let department = member.discipleshipInformation?.serving?.primaryDepartment {
+            distribution[department.displayName, default: 0] += 1
+        }
+    }
+    
+    print("Ministry Department Distribution:")
+    for (department, count) in distribution.sorted(by: { $0.value > $1.value }) {
+        print("  \(department): \(count) members")
+    }
+}
+
+analyzeDepartmentDistribution(members: allMembers)
+```
+
+## Protocol Conformance
+
+The `Member` struct conforms to `DiscipleshipInformationRepresentable`, allowing direct access:
+
+```swift
+// Access through member directly
+let baptism = member.waterBaptism           // Same as member.discipleshipInformation?.waterBaptism
+let serving = member.serving                 // Same as member.discipleshipInformation?.serving
+let missionary = member.missionary           // Same as member.discipleshipInformation?.missionary
+```
+
+## Primary Department Options
+
+The `PrimaryDepartment` enum includes:
+
+**Core Departments:**
+- `worshipTeam`, `youthMinistry`, `kingsKids`, `her`, `missions`, `church`, `officeStaff`
+
+**Worship and Creative:**
+- `drama`, `dance`, `audio`, `videoTeam`, `photography`
+
+**Technical:**
+- `techTeam`, `stageOperations`, `setupBreakdown`
+
+**Outreach:**
+- `usherHost`, `hospitality`, `welcomeTeam`, `salvationTeam`, `parking`, `security`
+
+**Education:**
+- `lifeTransformationCamp`, `foundationsCourse`, `prayerCourse`, `bibleCollege`, `leadershipAcademy`
+
+**Communication:**
+- `communication`, `socialMedia`, `mediaStore`, `eChurch`
+
+**Other:**
+- `prayerTeam`, `limitlessFoundation`, `lifeGroups`, `girlTribe`, `spm`, `dreamTeam`, `others`
+
+## Best Practices
+
+### Spiritual Journey Tracking
+
+- **Milestone Celebration:** Recognize baptism, courses, and camp attendance
+- **Course Completion:** Track and encourage course completions
+- **Progressive Discipleship:** Guide members through spiritual growth stages
+- **Ministry Placement:** Match spiritual maturity with ministry opportunities
+
+### Ministry Management
+
+- **Availability Tracking:** Respect interest levels and time constraints
+- **Department Organization:** Organize members by primary department
+- **Campus Coordination:** Track service campus for multi-site churches
+- **Involvement Levels:** Recognize full-time, part-time, and volunteer contributions
+
+## See Also
+
+- [Member](/api/members/member) - Main member struct
+- [MemberExpand](/api/members/member-expand) - How to expand discipleship information
+- [ContactInformation](/api/members/contact-information) - Contact details
+- [MaritalInformation](/api/members/marital-information) - Marital details
+- [MembersHandler](/api/members/member-handler) - Fetching members with discipleship info

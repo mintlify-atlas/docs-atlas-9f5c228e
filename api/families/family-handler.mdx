@@ -1,0 +1,557 @@
+---
+title: FamiliesHandler
+description: Protocol for managing families, relationships, and family trees
+icon: network-wired
+---
+
+## Overview
+
+The `FamiliesHandler` protocol provides a standardized API for managing families, relationships, and family-related queries in a congregation management system. It supports CRUD operations, relationship management, family discovery, and family tree building.
+
+## Protocol Definition
+
+```swift
+public protocol FamiliesHandler: Sendable
+```
+
+## Family CRUD Operations
+
+### fetchAll
+
+Fetches all families with pagination.
+
+```swift
+func fetchAll(pageNumber: Int, pageSize: Int) async throws -> FamilyResponse
+```
+
+#### Parameters
+
+- `pageNumber`: The page number to fetch (1-indexed)
+- `pageSize`: Number of families per page
+
+#### Returns
+
+A `FamilyResponse` containing families and metadata.
+
+#### Example
+
+```swift
+let congregation = CongregationKit(auth: auth)
+let response = try await congregation.families.fetchAll(
+    pageNumber: 1,
+    pageSize: 20
+)
+
+print("Fetched \(response.families.count) families")
+if let metadata = response.metadata {
+    print("Total families: \(metadata.total)")
+    print("Has next page: \(metadata.hasNextPage)")
+}
+```
+
+### fetch
+
+Fetches a single family by ID.
+
+```swift
+func fetch(id: FamilyID) async throws -> Family
+```
+
+#### Parameters
+
+- `id`: The family's unique identifier
+
+#### Returns
+
+The `Family` if found.
+
+### fetchMembers
+
+Fetches all members belonging to a family.
+
+```swift
+func fetchMembers(familyId: FamilyID) async throws -> [Member]
+```
+
+#### Parameters
+
+- `familyId`: The family's unique identifier
+
+#### Returns
+
+Array of `Member` objects in the family.
+
+#### Example
+
+```swift
+let members = try await congregation.families.fetchMembers(
+    familyId: FamilyID(rawValue: "FAM001")!
+)
+
+for member in members {
+    print("- \(member.memberName ?? "Unknown")")
+}
+```
+
+### fetchFamilyInfo
+
+Fetches detailed family information including members and relationships.
+
+```swift
+func fetchFamilyInfo(familyId: FamilyID) async throws -> FamilyInfo
+```
+
+#### Parameters
+
+- `familyId`: The family's unique identifier
+
+#### Returns
+
+`FamilyInfo` with rich family information and statistics.
+
+#### Example
+
+```swift
+let familyInfo = try await congregation.families.fetchFamilyInfo(
+    familyId: familyId
+)
+
+print("Family size: \(familyInfo.familySize)")
+print("Adults: \(familyInfo.adultCount)")
+print("Children: \(familyInfo.childCount)")
+print("Has minors: \(familyInfo.hasMinors)")
+
+if familyInfo.isSingleParentFamily {
+    print("Single-parent family")
+}
+
+if familyInfo.isMultiGenerational {
+    print("Multi-generational family")
+}
+```
+
+### createFamily
+
+Creates a new family.
+
+```swift
+func createFamily(_ family: Family) async throws -> Family
+```
+
+#### Parameters
+
+- `family`: The family to create
+
+#### Returns
+
+The created family with server-assigned ID.
+
+### updateFamily
+
+Updates an existing family.
+
+```swift
+func updateFamily(_ family: Family) async throws -> Family
+```
+
+#### Parameters
+
+- `family`: The family with updated information
+
+#### Returns
+
+The updated family.
+
+### deleteFamily
+
+Deletes a family.
+
+```swift
+func deleteFamily(id: FamilyID) async throws
+```
+
+#### Parameters
+
+- `id`: The family's unique identifier
+
+## Family Membership Operations
+
+### addMemberToFamily
+
+Adds a member to a family with a specific role.
+
+```swift
+func addMemberToFamily(
+    memberId: MemberID,
+    familyId: FamilyID,
+    role: FamilyRole
+) async throws -> FamilyMembership
+```
+
+#### Parameters
+
+- `memberId`: The member's ID
+- `familyId`: The family's ID
+- `role`: The member's role in the family
+
+#### Returns
+
+The created `FamilyMembership` record.
+
+#### Example
+
+```swift
+let membership = try await congregation.families.addMemberToFamily(
+    memberId: MemberID(rawValue: "TKT5678")!,
+    familyId: FamilyID(rawValue: "FAM001")!,
+    role: .child
+)
+
+print("Added member with role: \(membership.role.displayName)")
+```
+
+### removeMemberFromFamily
+
+Removes a member from a family.
+
+```swift
+func removeMemberFromFamily(
+    memberId: MemberID,
+    familyId: FamilyID
+) async throws
+```
+
+### updateMemberRole
+
+Updates a member's role in a family.
+
+```swift
+func updateMemberRole(
+    memberId: MemberID,
+    familyId: FamilyID,
+    newRole: FamilyRole
+) async throws -> FamilyMembership
+```
+
+## Relationship Operations
+
+### fetchRelationships
+
+Fetches all relationships for a member.
+
+```swift
+func fetchRelationships(memberId: MemberID) async throws -> [MemberRelationship]
+```
+
+#### Parameters
+
+- `memberId`: The member's ID
+
+#### Returns
+
+Array of `MemberRelationship` objects involving this member.
+
+#### Example
+
+```swift
+let relationships = try await congregation.families.fetchRelationships(
+    memberId: MemberID(rawValue: "TKT1234")!
+)
+
+for rel in relationships {
+    let targetId = rel.targetMemberId
+    let type = rel.relationshipType.displayName
+    print("Relationship: \(type) to \(targetId)")
+}
+```
+
+### createRelationship
+
+Creates a new relationship between members.
+
+```swift
+func createRelationship(
+    _ relationship: MemberRelationship
+) async throws -> MemberRelationship
+```
+
+#### Parameters
+
+- `relationship`: The relationship to create
+
+#### Returns
+
+The created relationship.
+
+### createBidirectionalRelationship
+
+Creates bidirectional relationships (primary and inverse).
+
+```swift
+func createBidirectionalRelationship(
+    _ relationship: MemberRelationship
+) async throws -> (primary: MemberRelationship, inverse: MemberRelationship)
+```
+
+#### Parameters
+
+- `relationship`: The primary relationship
+
+#### Returns
+
+Tuple of primary and inverse relationships.
+
+#### Example
+
+```swift
+let parentChild = MemberRelationship(
+    id: RelationshipID(rawValue: "REL001")!,
+    sourceMemberId: MemberID(rawValue: "TKT1234")!,
+    targetMemberId: MemberID(rawValue: "TKT5678")!,
+    relationshipType: .parent,
+    isPrimary: true
+)
+
+let (primary, inverse) = try await congregation.families.createBidirectionalRelationship(
+    parentChild
+)
+
+print("Primary: \(primary.relationshipType.displayName)") // "Parent"
+print("Inverse: \(inverse.relationshipType.displayName)") // "Child"
+```
+
+### deleteRelationship
+
+Deletes a relationship.
+
+```swift
+func deleteRelationship(id: RelationshipID) async throws
+```
+
+### updateRelationship
+
+Updates an existing relationship.
+
+```swift
+func updateRelationship(
+    _ relationship: MemberRelationship
+) async throws -> MemberRelationship
+```
+
+## Relationship Discovery
+
+### suggestRelationships
+
+Suggests potential relationships for a member based on heuristics.
+
+```swift
+func suggestRelationships(
+    for member: Member
+) async throws -> [SuggestedRelationship]
+```
+
+#### Parameters
+
+- `member`: The member to analyze
+
+#### Returns
+
+Array of `SuggestedRelationship` objects with confidence scores.
+
+#### Example
+
+```swift
+let member = try await congregation.members.fetch(id: memberId)
+let suggestions = try await congregation.families.suggestRelationships(
+    for: member
+)
+
+for suggestion in suggestions where suggestion.isHighConfidence {
+    print("Suggested: \(suggestion.suggestedType.displayName)")
+    print("Confidence: \(suggestion.confidence)")
+    print("Reason: \(suggestion.reason.description)")
+}
+```
+
+### suggestRelationships (with options)
+
+Suggests potential relationships with custom options.
+
+```swift
+func suggestRelationships(
+    for member: Member,
+    options: RelationshipSuggestionOptions
+) async throws -> [SuggestedRelationship]
+```
+
+#### Parameters
+
+- `member`: The member to analyze
+- `options`: Configuration options for suggestions
+
+#### Example
+
+```swift
+let options = RelationshipSuggestionOptions(
+    minimumConfidence: 0.8,
+    includeAddressMatching: true,
+    includeNameMatching: true,
+    includeAgeAnalysis: true,
+    maxSuggestions: 5
+)
+
+let suggestions = try await congregation.families.suggestRelationships(
+    for: member,
+    options: options
+)
+```
+
+## Family Tree Operations
+
+### buildFamilyTree (from member)
+
+Builds a family tree starting from a specific member.
+
+```swift
+func buildFamilyTree(
+    startingFrom memberId: MemberID
+) async throws -> FamilyTree
+```
+
+#### Parameters
+
+- `memberId`: The root member's ID
+
+#### Returns
+
+A `FamilyTree` structure.
+
+#### Example
+
+```swift
+let tree = try await congregation.families.buildFamilyTree(
+    startingFrom: MemberID(rawValue: "TKT1234")!
+)
+
+print("Generations: \(tree.generationCount)")
+print("Total members: \(tree.memberCount)")
+print("Total relationships: \(tree.relationshipCount)")
+
+// Get members by generation
+let rootGeneration = tree.nodes(inGeneration: 0)
+let children = tree.nodes(inGeneration: 1)
+```
+
+### buildFamilyTree (for family)
+
+Builds a family tree for an entire family.
+
+```swift
+func buildFamilyTree(
+    forFamily familyId: FamilyID
+) async throws -> FamilyTree
+```
+
+#### Parameters
+
+- `familyId`: The family's ID
+
+#### Returns
+
+A `FamilyTree` structure.
+
+## Supporting Types
+
+### RelationshipSuggestionOptions
+
+Options for relationship suggestion algorithms.
+
+```swift
+public struct RelationshipSuggestionOptions: Codable, Equatable, Sendable
+```
+
+<ResponseField name="minimumConfidence" type="Double">
+  Minimum confidence threshold (0.0 to 1.0).
+</ResponseField>
+
+<ResponseField name="includeAddressMatching" type="Bool">
+  Whether to include address-based suggestions.
+</ResponseField>
+
+<ResponseField name="includeNameMatching" type="Bool">
+  Whether to include name-based suggestions.
+</ResponseField>
+
+<ResponseField name="includeAgeAnalysis" type="Bool">
+  Whether to include age-based suggestions.
+</ResponseField>
+
+<ResponseField name="maxSuggestions" type="Int">
+  Maximum number of suggestions to return.
+</ResponseField>
+
+#### Default Options
+
+```swift
+let defaultOptions = RelationshipSuggestionOptions.default
+// minimumConfidence: 0.5
+// includeAddressMatching: true
+// includeNameMatching: true
+// includeAgeAnalysis: true
+// maxSuggestions: 10
+```
+
+### FamilyInfo
+
+Comprehensive family information with computed statistics.
+
+```swift
+public struct FamilyInfo: Codable, Sendable
+```
+
+<ResponseField name="family" type="Family" required>
+  The family unit.
+</ResponseField>
+
+<ResponseField name="members" type="[Member]" required>
+  All members belonging to this family.
+</ResponseField>
+
+<ResponseField name="memberships" type="[FamilyMembership]" required>
+  Family membership records for each member.
+</ResponseField>
+
+<ResponseField name="relationships" type="[MemberRelationship]" required>
+  Relationships between family members.
+</ResponseField>
+
+#### Computed Properties
+
+- `familySize: Int` - Total number of members
+- `adultCount: Int` - Number of adults (18+)
+- `childCount: Int` - Number of children (under 18)
+- `hasMinors: Bool` - Whether family has minors
+- `headOfHousehold: Member?` - The head of the family
+- `spouseOfHead: Member?` - Spouse of the head
+- `children: [Member]` - All children in the family
+- `adults: [Member]` - All adults in the family
+- `averageAge: Double?` - Average age of family members
+- `ageRange: ClosedRange<Int>?` - Age range (youngest to oldest)
+- `relationshipTypes: Set<RelationshipType>` - Unique relationship types
+- `membersByRole: [FamilyRole: [Member]]` - Members grouped by role
+- `activeRelationshipCount: Int` - Number of active relationships
+- `isSingleParentFamily: Bool` - Whether single-parent family
+- `isMultiGenerational: Bool` - Whether multi-generational
+
+## Related Types
+
+- [Family](/api/families/family) - Family struct
+- [FamilyTree](/api/families/family-tree) - Family tree structure
+- [RelationshipType](/api/families/relationship-types) - Relationship type enum
+- [MemberRelationship](/api/families/relationship-types#memberrelationship) - Relationship struct
+
+## See Also
+
+- [Managing Families](/guides/working-with-families)
+- [Building Family Trees](/guides/working-with-families)
+- [Relationship Discovery](/guides/working-with-families)

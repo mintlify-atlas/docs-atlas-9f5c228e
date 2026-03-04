@@ -1,0 +1,194 @@
+---
+title: "SalesforceAuthError"
+description: "Authentication error types with comprehensive error handling"
+---
+
+## Overview
+
+The `SalesforceAuthError` enum provides detailed error information for authentication failures, including network issues, credential problems, and server errors. All errors provide user-friendly, localized descriptions suitable for display in user interfaces or logging systems.
+
+## Definition
+
+```swift
+public enum SalesforceAuthError: Error, LocalizedError, Sendable
+```
+
+## Error Cases
+
+### invalidCredentials
+
+```swift
+case invalidCredentials
+```
+
+Invalid Salesforce credentials. This error occurs when the provided credentials (client ID, client secret, username, or password) are incorrect or have expired.
+
+**Error Description:** "Invalid Salesforce credentials"
+
+**Recovery Actions:**
+- Verify all credential values are correct
+- Check if credentials have expired
+- Confirm user has necessary permissions
+
+### networkError
+
+```swift
+case networkError(Error)
+```
+
+Network error during authentication. This error occurs when there are connectivity issues, timeouts, or other network-related problems during the authentication process.
+
+**Error Description:** "Network error: [underlying error description]"
+
+**Recovery Actions:**
+- Check network connectivity
+- Implement retry logic with exponential backoff
+- Verify firewall/proxy settings
+- Check DNS configuration
+
+### invalidResponse
+
+```swift
+case invalidResponse
+```
+
+Invalid response from Salesforce. This error occurs when Salesforce returns a response that cannot be parsed or contains unexpected data format.
+
+**Error Description:** "Invalid response from Salesforce"
+
+**Recovery Actions:**
+- Verify API endpoint is correct
+- Check Salesforce API version compatibility
+- Review response format expectations
+
+### serverError
+
+```swift
+case serverError(String)
+```
+
+Salesforce server error. This error occurs when Salesforce returns a server-side error with a specific error message from their system.
+
+**Error Description:** "Salesforce server error: [server message]"
+
+**Recovery Actions:**
+- Check Salesforce status page for outages
+- Review error message for specific guidance
+- Implement retry logic for transient errors
+- Contact Salesforce support if persistent
+
+### rateLimitExceeded
+
+```swift
+case rateLimitExceeded
+```
+
+Salesforce API rate limit exceeded. This error occurs when the application has exceeded Salesforce API rate limits and needs to wait before making additional requests.
+
+**Error Description:** "Salesforce API rate limit exceeded"
+
+**Recovery Actions:**
+- Implement exponential backoff retry logic
+- Queue requests to avoid rate limits
+- Review API usage patterns
+- Consider upgrading Salesforce plan for higher limits
+
+## Usage Example
+
+```swift
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+    // Use congregation
+} catch SalesforceAuthError.invalidCredentials {
+    print("Please check your Salesforce credentials")
+} catch SalesforceAuthError.networkError(let underlyingError) {
+    print("Network error: \(underlyingError.localizedDescription)")
+} catch SalesforceAuthError.rateLimitExceeded {
+    print("Too many requests, please wait before retrying")
+} catch SalesforceAuthError.serverError(let message) {
+    print("Server error: \(message)")
+} catch SalesforceAuthError.invalidResponse {
+    print("Invalid response from Salesforce")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Error Handling Strategies
+
+### Credential Errors
+
+- **Invalid Credentials:** Prompt user to verify credentials
+- **Expired Tokens:** Implement automatic token refresh
+- **Permission Issues:** Check user permissions and roles
+
+### Network Errors
+
+- **Connectivity Issues:** Implement retry logic with exponential backoff
+- **Timeout Errors:** Increase timeout values for slow connections
+- **DNS Issues:** Check network configuration and DNS settings
+
+### Server Errors
+
+- **Temporary Issues:** Implement retry logic for transient errors
+- **Maintenance Windows:** Check Salesforce status page
+- **Service Unavailable:** Implement graceful degradation
+
+### Rate Limiting
+
+- **Exponential Backoff:** Implement progressive retry delays
+- **Request Queuing:** Queue requests when approaching limits
+- **Load Balancing:** Distribute requests across time periods
+
+## Retry Logic Example
+
+```swift
+func authenticateWithRetry(
+    credentials: SalesforceCredentials,
+    maxRetries: Int = 3
+) async throws -> CongregationKit {
+    var lastError: Error?
+    
+    for attempt in 1...maxRetries {
+        do {
+            return try await CongregationKit(
+                httpClient: httpClient,
+                credentials: credentials
+            )
+        } catch SalesforceAuthError.networkError(let error) {
+            lastError = error
+            if attempt < maxRetries {
+                let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                try await Task.sleep(nanoseconds: delay)
+                continue
+            }
+        } catch {
+            // Don't retry for non-network errors
+            throw error
+        }
+    }
+    
+    throw lastError ?? SalesforceAuthError.networkError(
+        NSError(domain: "Unknown", code: -1)
+    )
+}
+```
+
+## Properties
+
+### errorDescription
+
+```swift
+public var errorDescription: String? { get }
+```
+
+A user-friendly, localized description of the error. This property provides human-readable error messages suitable for display in user interfaces or logging systems.
+
+## Conformances
+
+- `Error` - Standard Swift error protocol
+- `LocalizedError` - Provides localized error descriptions
+- `Sendable` - Safe to use across concurrency domains

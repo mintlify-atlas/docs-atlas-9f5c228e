@@ -1,0 +1,216 @@
+---
+title: "MemberExpand"
+description: "Enum specifying which related information to expand when fetching members."
+---
+
+The `MemberExpand` enum allows you to selectively fetch related member information, optimizing performance by only loading the data you need.
+
+## Overview
+
+When fetching members, you can specify which nested structures should be populated using the `MemberExpand` enum. This is especially useful when dealing with large datasets where you only need specific information.
+
+## Enum Cases
+
+<ResponseField name="employmentInformation" type="MemberExpand">
+  Expand employment information including status, organization, occupation, and sector.
+  
+  When expanded, the member's `employmentInformation` property will be populated with:
+  - Employment status (employed, student, retired, etc.)
+  - Name of organization
+  - Occupation category and subcategory
+  - Employment sector
+</ResponseField>
+
+<ResponseField name="contactInformation" type="MemberExpand">
+  Expand contact information including phone, email, address, and communication preferences.
+  
+  When expanded, the member's `contactInformation` property will be populated with:
+  - Primary phone number
+  - Email address
+  - Physical address and area
+  - WhatsApp number
+  - Alternate phone number
+  - Profession and location
+</ResponseField>
+
+<ResponseField name="martialInformation" type="MemberExpand">
+  Expand marital information including status, anniversary, spouse, and children.
+  
+  **Note:** This is spelled "martialInformation" in the API for backward compatibility.
+  
+  When expanded, the member's `maritalInformation` property will be populated with:
+  - Marital status
+  - Wedding anniversary date with rich calculations
+  - Spouse name
+  - Number of children
+</ResponseField>
+
+<ResponseField name="discipleshipInformation" type="MemberExpand">
+  Expand discipleship and spiritual information.
+  
+  When expanded, the member's `discipleshipInformation` property will be populated with:
+  - Born again date
+  - Water baptism status and date
+  - Prayer course completion
+  - Foundation course completion
+  - Life transformation camp attendance
+  - Holy Spirit filling experience
+  - Missionary involvement
+  - YouTube and WhatsApp subscription status
+  - Serving and ministry involvement
+  - Bible course progress
+</ResponseField>
+
+## Usage Examples
+
+### Fetch Single Field
+
+```swift
+// Fetch member with only employment information
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [.employmentInformation]
+)
+
+// Only employment information will be available
+if let employment = member.employmentInformation {
+    print("Status: \(employment.employmentStatus?.displayName ?? "Unknown")")
+    print("Occupation: \(employment.occupation?.displayName ?? "Unknown")")
+}
+
+// Other fields will be nil
+print(member.contactInformation)       // nil
+print(member.maritalInformation)       // nil
+print(member.discipleshipInformation)  // nil
+```
+
+### Fetch Multiple Fields
+
+```swift
+// Fetch member with contact and discipleship information
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [
+        .contactInformation,
+        .discipleshipInformation
+    ]
+)
+
+// Both requested fields will be available
+if let contact = member.contactInformation {
+    print("Email: \(contact.email ?? "No email")")
+    print("WhatsApp: \(contact.whatsappNumber ?? "No WhatsApp")")
+}
+
+if let discipleship = member.discipleshipInformation {
+    print("Water baptism: \(discipleship.waterBaptism?.received ?? false)")
+    if let serving = discipleship.serving {
+        print("Department: \(serving.primaryDepartment?.displayName ?? "None")")
+    }
+}
+```
+
+### Fetch All Fields
+
+```swift
+// Fetch member with all related information
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [
+        .employmentInformation,
+        .contactInformation,
+        .martialInformation,
+        .discipleshipInformation
+    ]
+)
+
+// All nested structures will be populated
+print(member.employmentInformation)    // Available
+print(member.contactInformation)       // Available
+print(member.maritalInformation)       // Available
+print(member.discipleshipInformation)  // Available
+```
+
+### Fetch Multiple Members with Expansion
+
+```swift
+// Fetch paginated members with specific expanded fields
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: [
+        .contactInformation,
+        .discipleshipInformation
+    ]
+)
+
+// Process each member with expanded information
+for member in response.members {
+    if let serving = member.discipleshipInformation?.serving {
+        print("\(member.memberName ?? "Unknown"): \(serving.primaryDepartment?.displayName ?? "No department")")
+    }
+}
+```
+
+## Performance Considerations
+
+### When to Expand Fields
+
+**Expand fields when:**
+- You need specific nested information for your use case
+- You're fetching a small number of members
+- The additional data is essential for your application logic
+
+**Don't expand fields when:**
+- You only need basic member information
+- You're fetching large numbers of members
+- You want to minimize network payload and processing time
+
+### Example: Optimized Fetching
+
+```swift
+// Scenario 1: Display member list (no expansion needed)
+let basicList = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 100
+    // No expanded fields - faster response
+)
+
+// Display only basic information
+for member in basicList.members {
+    print("\(member.memberName ?? "Unknown") - \(member.phone ?? "No phone")")
+}
+
+// Scenario 2: Member detail view (expand needed fields)
+let detailedMember = try await congregation.members.fetch(
+    id: selectedMemberId,
+    expanded: [
+        .contactInformation,
+        .employmentInformation,
+        .discipleshipInformation
+    ]
+)
+
+// Display detailed information
+displayMemberDetails(detailedMember)
+```
+
+## Raw Value
+
+Each case has a string raw value matching the API field name:
+
+```swift
+MemberExpand.employmentInformation.rawValue     // "employmentInformation"
+MemberExpand.contactInformation.rawValue        // "contactInformation"
+MemberExpand.martialInformation.rawValue        // "martialInformation"
+MemberExpand.discipleshipInformation.rawValue   // "discipleshipInformation"
+```
+
+## See Also
+
+- [Member](/api/members/member) - Member struct with all properties
+- [MembersHandler](/api/members/member-handler) - Methods for fetching members
+- [ContactInformation](/api/members/contact-information) - Contact details structure
+- [EmploymentInformation](/api/members/employment-information) - Employment details structure
+- [MaritalInformation](/api/members/marital-information) - Marital details structure
+- [DiscipleshipInformation](/api/members/discipleship-information) - Spiritual journey structure

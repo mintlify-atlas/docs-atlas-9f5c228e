@@ -1,80 +1,323 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with CongregationKit in minutes - from installation to your first API call
 ---
 
-## Get started in three steps
+This guide will walk you through setting up CongregationKit and making your first API call to fetch church member data from Salesforce.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- Installed CongregationKit (see [Installation](/installation))
+- Salesforce OAuth credentials (client ID and client secret)
+- Salesforce username and password
+- AsyncHTTPClient imported in your project
 
-### Step 2: Deploy your changes
+<Warning>
+  Keep your Salesforce credentials secure. Never hardcode them in your source code. Use environment variables or secure storage instead.
+</Warning>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Step 1: Import Dependencies
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+First, import the required modules:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```swift
+import CongregationKit
+import AsyncHTTPClient
+import Foundation
+```
 
-### Step 3: Go live
+## Step 2: Set Up Credentials
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+Create your Salesforce credentials. In production, load these from environment variables or secure storage:
 
-## Next steps
+```swift
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_salesforce_username",
+    password: "your_salesforce_password"
+)
+```
 
-Now that you have your docs running, explore these key features:
+<Tip>
+  **Best Practice**: Store credentials in environment variables:
+  
+  ```swift
+  let credentials = SalesforceCredentials(
+      clientId: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_ID"] ?? "",
+      clientSecret: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_SECRET"] ?? "",
+      username: ProcessInfo.processInfo.environment["SALESFORCE_USERNAME"] ?? "",
+      password: ProcessInfo.processInfo.environment["SALESFORCE_PASSWORD"] ?? ""
+  )
+  ```
+</Tip>
 
-<CardGroup cols={2}>
+## Step 3: Initialize the Client
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+Create an HTTP client and initialize CongregationKit. The client will automatically authenticate with Salesforce:
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+```swift
+let httpClient = HTTPClient.shared
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+    print("Successfully authenticated with Salesforce!")
+} catch SalesforceAuthError.invalidCredentials {
+    print("Invalid credentials. Please check your Salesforce credentials.")
+} catch SalesforceAuthError.networkError(let error) {
+    print("Network error: \(error.localizedDescription)")
+} catch {
+    print("Authentication failed: \(error)")
+}
+```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+## Step 4: Fetch Members
 
-</CardGroup>
+Now you can fetch member data. You can choose which information to include using the `expanded` parameter:
+
+<CodeGroup>
+
+```swift Basic Fetch
+// Fetch first page of members (50 members by default)
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50
+)
+
+print("Fetched \(response.members.count) members")
+
+for member in response.members {
+    print("\(member.memberName ?? "Unknown") - \(member.phone ?? "No phone")")
+}
+```
+
+```swift With Expanded Fields
+import SalesforceClient // for MemberExpand
+
+// Fetch members with additional information
+let expanded: [MemberExpand] = [
+    .contactInformation,
+    .employmentInformation,
+    .maritalInformation,
+    .discipleshipInformation
+]
+
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: expanded
+)
+
+for member in response.members {
+    print("Name: \(member.memberName ?? "Unknown")")
+    print("Email: \(member.contactInformation?.email ?? "N/A")")
+    print("Occupation: \(member.employmentInformation?.occupation?.rawValue ?? "N/A")")
+    print("Marital Status: \(member.maritalInformation?.maritalStatus?.rawValue ?? "N/A")")
+    print("---")
+}
+```
+
+```swift Fetch Single Member
+import Congregation // for MemberID
+
+// Fetch a specific member by ID
+let memberId = try MemberID(validating: "TKT123456")
+
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation, .discipleshipInformation]
+)
+
+print("Member: \(member.memberName ?? "Unknown")")
+
+if let discipleship = member.discipleshipInformation {
+    if let waterBaptism = discipleship.waterBaptism {
+        print("Water Baptism: \(waterBaptism.received ? "Yes" : "No")")
+        if let date = waterBaptism.date {
+            print("Baptism Date: \(date)")
+        }
+    }
+}
+```
+
+</CodeGroup>
+
+## Understanding Field Expansion
+
+When you fetch members, you can choose which parts of their data you want by passing an array of `MemberExpand` values. This makes API calls faster and keeps your app efficient:
+
+| Expansion | Property on Member | What It Includes |
+| --- | --- | --- |
+| `.contactInformation` | `member.contactInformation` | Phone, email, address, WhatsApp number |
+| `.employmentInformation` | `member.employmentInformation` | Employment status, organization, occupation |
+| `.maritalInformation` | `member.maritalInformation` | Marital status, spouse name, wedding anniversary |
+| `.discipleshipInformation` | `member.discipleshipInformation` | Water baptism, courses completed, ministry involvement |
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  If you don't request a field expansion, that property will be `nil` in the member object. Always check for `nil` before accessing expanded fields.
 </Note>
+
+## Complete Example
+
+Here's a complete working example:
+
+```swift main.swift
+import CongregationKit
+import AsyncHTTPClient
+import Foundation
+import SalesforceClient
+
+@main
+struct App {
+    static func main() async throws {
+        // 1. Set up credentials
+        let credentials = SalesforceCredentials(
+            clientId: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_ID"] ?? "",
+            clientSecret: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_SECRET"] ?? "",
+            username: ProcessInfo.processInfo.environment["SALESFORCE_USERNAME"] ?? "",
+            password: ProcessInfo.processInfo.environment["SALESFORCE_PASSWORD"] ?? ""
+        )
+        
+        // 2. Create HTTP client
+        let httpClient = HTTPClient.shared
+        
+        do {
+            // 3. Initialize CongregationKit
+            let congregation = try await CongregationKit(
+                httpClient: httpClient,
+                credentials: credentials
+            )
+            
+            // 4. Fetch members with expanded fields
+            let response = try await congregation.members.fetchAll(
+                pageNumber: 1,
+                pageSize: 10,
+                expanded: [
+                    .contactInformation,
+                    .discipleshipInformation
+                ]
+            )
+            
+            // 5. Process the results
+            print("Successfully fetched \(response.members.count) members\n")
+            
+            for member in response.members {
+                print("Name: \(member.memberName ?? "Unknown")")
+                print("Phone: \(member.contactInformation?.phoneNumber ?? "N/A")")
+                print("Email: \(member.contactInformation?.email ?? "N/A")")
+                
+                if let baptism = member.discipleshipInformation?.waterBaptism {
+                    print("Baptized: \(baptism.received ? "Yes" : "No")")
+                }
+                
+                print("---")
+            }
+            
+            // 6. Handle pagination if needed
+            if let nextPageToken = response.metadata?.nextPageToken {
+                print("\nMore members available. Next page token: \(nextPageToken)")
+            }
+            
+        } catch SalesforceAuthError.invalidCredentials {
+            print("Error: Invalid Salesforce credentials")
+        } catch SalesforceAuthError.networkError(let error) {
+            print("Network error: \(error.localizedDescription)")
+        } catch MemberError.memberNotFound {
+            print("Error: Member not found")
+        } catch MemberError.fetchFailed(let error) {
+            print("Failed to fetch members: \(error.localizedDescription)")
+        } catch {
+            print("Unexpected error: \(error)")
+        }
+    }
+}
+```
+
+## Error Handling
+
+Always handle errors appropriately when working with the API:
+
+### Authentication Errors
+
+```swift
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+} catch SalesforceAuthError.invalidCredentials {
+    print("Invalid credentials. Please check your Salesforce credentials.")
+} catch SalesforceAuthError.networkError(let error) {
+    print("Network error: \(error.localizedDescription)")
+} catch SalesforceAuthError.rateLimitExceeded {
+    print("Rate limit exceeded. Please wait before retrying.")
+} catch SalesforceAuthError.serverError(let message) {
+    print("Salesforce server error: \(message)")
+} catch {
+    print("Authentication failed: \(error)")
+}
+```
+
+### Member Fetch Errors
+
+```swift
+do {
+    let member = try await congregation.members.fetch(id: memberId)
+} catch MemberError.memberNotFound {
+    print("Member not found")
+} catch MemberError.invalidMemberID {
+    print("Invalid member ID format (must start with TKT)")
+} catch MemberError.fetchFailed(let error) {
+    print("Failed to fetch member: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Type Safety with MemberID
+
+CongregationKit uses a type-safe `MemberID` struct to ensure member IDs are valid:
+
+```swift
+import Congregation
+
+// Using the throwing initializer
+do {
+    let memberId = try MemberID(validating: "TKT123456")
+    let member = try await congregation.members.fetch(id: memberId)
+} catch MemberError.invalidMemberID {
+    print("Member ID must start with 'TKT'")
+}
+
+// Using the failable initializer
+if let memberId = MemberID(rawValue: "tkt123456") {
+    // memberId.rawValue is automatically normalized to "TKT123456"
+    let member = try await congregation.members.fetch(id: memberId)
+}
+```
+
+<Note>
+  Member IDs are automatically normalized to uppercase (e.g., "tkt123" becomes "TKT123").
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Working with Members" icon="users" href="/api/members/member">
+    Learn about all member operations and data types
+  </Card>
+  <Card title="Fetching Members" icon="list" href="/guides/fetching-members">
+    Handle large datasets with pagination
+  </Card>
+  <Card title="Authentication" icon="lock" href="/concepts/authentication">
+    Advanced authentication patterns
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/concepts/error-handling">
+    Comprehensive error handling guide
+  </Card>
+</CardGroup>

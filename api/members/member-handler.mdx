@@ -1,0 +1,222 @@
+---
+title: "MembersHandler"
+description: "Protocol for handling member operations with support for pagination and field expansion."
+---
+
+The `MembersHandler` protocol provides methods to fetch all members or a specific member by ID, with support for pagination and expanded fields.
+
+## Protocol Methods
+
+### Fetch Single Member
+
+<ParamField path="id" type="MemberID" required>
+  The member ID to fetch. Must be a valid `MemberID` (starts with "TKT").
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]">
+  Array of fields to expand. See [MemberExpand](/api/members/member-expand) for available options.
+</ParamField>
+
+```swift
+func fetch(id memberId: MemberID) async throws -> Member
+func fetch(id memberId: MemberID, expanded: [MemberExpand]) async throws -> Member
+```
+
+Fetches a specific member by ID with optional field expansion.
+
+**Example:**
+
+```swift
+// Fetch member with basic information only
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456")
+)
+
+// Fetch member with expanded fields
+let memberWithDetails = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [
+        .contactInformation,
+        .employmentInformation,
+        .discipleshipInformation
+    ]
+)
+
+// Access expanded information
+if let contact = memberWithDetails.contactInformation {
+    print("Email: \(contact.email ?? "No email")")
+    print("WhatsApp: \(contact.whatsappNumber ?? "No WhatsApp")")
+}
+```
+
+### Fetch All Members
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch. Defaults to 1.
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The number of members per page. Defaults to 50.
+</ParamField>
+
+<ParamField path="nextPageToken" type="String?">
+  Token for cursor-based pagination.
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]">
+  Array of fields to expand for all members.
+</ParamField>
+
+```swift
+func fetch() async throws -> MemberResponse
+func fetchAll(pageNumber: Int?, pageSize: Int?) async throws -> MemberResponse
+func fetchAll(pageNumber: Int?, pageSize: Int?, nextPageToken: String?) async throws -> MemberResponse
+func fetchAll(pageNumber: Int?, pageSize: Int?, expanded: [MemberExpand]) async throws -> MemberResponse
+```
+
+Fetches all members with pagination support and optional field expansion.
+
+**Example:**
+
+```swift
+// Fetch first page with default size
+let response = try await congregation.members.fetch()
+
+print("Total members: \(response.totalRecords)")
+print("Current page: \(response.pageNumber)")
+print("Members on this page: \(response.members.count)")
+
+// Fetch specific page
+let page2 = try await congregation.members.fetchAll(
+    pageNumber: 2,
+    pageSize: 100
+)
+
+// Fetch with expanded fields
+let membersWithDetails = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: [.contactInformation, .discipleshipInformation]
+)
+
+// Access expanded information for each member
+for member in membersWithDetails.members {
+    if let serving = member.discipleshipInformation?.serving {
+        print("\(member.memberName ?? "Unknown"): \(serving.primaryDepartment?.displayName ?? "No department")")
+    }
+}
+```
+
+### Pagination with Next Page Token
+
+```swift
+// Fetch first page
+var response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50
+)
+
+// Process first page
+processMembers(response.members)
+
+// Fetch subsequent pages using nextPageToken
+while let nextToken = response.nextPageToken {
+    response = try await congregation.members.fetchAll(
+        pageNumber: nil,
+        pageSize: nil,
+        nextPageToken: nextToken
+    )
+    processMembers(response.members)
+}
+```
+
+## Deprecated Methods
+
+### fetchAll() - No Pagination
+
+```swift
+@available(*, deprecated, message: "Use paginated fetchAll for better performance.")
+func fetchAll() async throws -> [Member]
+```
+
+Fetches all members without pagination. **Deprecated** - use paginated methods instead for better performance.
+
+### fetch(id:) - String Parameter
+
+```swift
+@available(
+    *, deprecated,
+    message: "This method no longer fetches a single member due to backend API changes. Use fetch(id:) with MemberID for correct, type-safe single-member retrieval."
+)
+func fetch(id memberId: String) async throws -> Member
+```
+
+Fetches a member using a String ID. **Deprecated** - use `MemberID` type instead for type safety and validation.
+
+## Error Handling
+
+All methods throw `MemberError` if the operation fails:
+
+```swift
+do {
+    let member = try await congregation.members.fetch(
+        id: MemberID(validating: "TKT123456")
+    )
+    // Use member
+} catch MemberError.memberNotFound {
+    print("Member not found")
+} catch MemberError.invalidMemberID {
+    print("Invalid member ID format")
+} catch MemberError.fetchFailed(let error) {
+    print("Fetch failed: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Response Types
+
+### MemberResponse
+
+The `MemberResponse` struct contains paginated member data:
+
+```swift
+struct MemberResponse {
+    let members: [Member]           // Members on current page
+    let totalRecords: Int           // Total number of members
+    let pageNumber: Int             // Current page number
+    let pageSize: Int               // Number of members per page
+    let nextPageToken: String?      // Token for next page (if available)
+}
+```
+
+## Implementation
+
+The default implementation is `SalesforceMembersHandler`, which handles all member operations using the Salesforce API:
+
+```swift
+let membersHandler = SalesforceMembersHandler(
+    salesforceClient: client,
+    accessToken: auth.accessToken,
+    instanceUrl: auth.instanceUrl
+)
+```
+
+In practice, you access the handler through the `CongregationKit` instance:
+
+```swift
+let congregation = try await CongregationKit(
+    clientId: "your-client-id",
+    clientSecret: "your-client-secret"
+)
+
+// Access members through the handler
+let members = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+```
+
+## See Also
+
+- [Member](/api/members/member) - Member struct with all properties
+- [MemberExpand](/api/members/member-expand) - Field expansion options
+- [ContactInformation](/api/members/contact-information) - Contact details structure
+- [EmploymentInformation](/api/members/employment-information) - Employment details structure

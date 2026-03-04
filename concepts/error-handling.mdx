@@ -1,0 +1,509 @@
+---
+title: Error Handling
+description: Comprehensive guide to handling errors in CongregationKit with real-world patterns
+icon: triangle-exclamation
+---
+
+## Overview
+
+CongregationKit provides **type-safe, comprehensive error handling** through dedicated error enums. Understanding these errors is critical for building robust church management applications.
+
+<Note>
+  All CongregationKit errors conform to Swift's `LocalizedError` protocol, providing user-friendly descriptions suitable for displaying to end users.
+</Note>
+
+## Why Error Handling Matters
+
+Proper error handling ensures:
+
+- **Resilience**: Your app handles failures gracefully without crashing
+- **User Experience**: Clear error messages help users understand what went wrong
+- **Debugging**: Detailed error information helps diagnose production issues
+- **Recovery**: Specific error types enable automatic retry logic
+- **Security**: Prevents leaking sensitive information through error messages
+
+## Authentication Errors
+
+The `SalesforceAuthError` enum handles authentication-related failures:
+
+```swift
+public enum SalesforceAuthError: Error, LocalizedError, Sendable {
+    /// Invalid Salesforce credentials
+    case invalidCredentials
+    
+    /// Network error during authentication
+    case networkError(Error)
+    
+    /// Invalid response from Salesforce
+    case invalidResponse
+    
+    /// Salesforce server error
+    case serverError(String)
+    
+    /// Salesforce API rate limit exceeded
+    case rateLimitExceeded
+}
+```
+
+### Handling Authentication Errors
+
+```swift
+import CongregationKit
+import AsyncHTTPClient
+
+let httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+    // Successfully authenticated
+    
+} catch SalesforceAuthError.invalidCredentials {
+    // Credentials are incorrect or expired
+    print("❌ Invalid credentials")
+    print("Please verify your client ID, client secret, username, and password")
+    // Action: Prompt user to re-enter credentials
+    
+} catch SalesforceAuthError.networkError(let underlyingError) {
+    // Network connectivity issues
+    print("❌ Network error: \(underlyingError.localizedDescription)")
+    // Action: Implement retry logic with exponential backoff
+    
+} catch SalesforceAuthError.invalidResponse {
+    // Unexpected response format
+    print("❌ Invalid response from Salesforce")
+    print("This may indicate an API version mismatch")
+    // Action: Check API compatibility
+    
+} catch SalesforceAuthError.serverError(let message) {
+    // Salesforce server-side error
+    print("❌ Salesforce server error: \(message)")
+    // Action: Check Salesforce Trust status page
+    
+} catch SalesforceAuthError.rateLimitExceeded {
+    // Too many authentication requests
+    print("❌ Rate limit exceeded")
+    print("Too many authentication attempts. Please wait before retrying.")
+    // Action: Implement exponential backoff
+    
+} catch {
+    print("❌ Unexpected error: \(error)")
+}
+```
+
+### Retry Logic for Network Errors
+
+```swift
+func authenticateWithRetry(
+    credentials: SalesforceCredentials,
+    maxRetries: Int = 3
+) async throws -> CongregationKit {
+    var lastError: Error?
+    
+    for attempt in 1...maxRetries {
+        do {
+            return try await CongregationKit(
+                httpClient: httpClient,
+                credentials: credentials
+            )
+        } catch SalesforceAuthError.networkError(let error) {
+            print("Network error on attempt \(attempt): \(error)")
+            lastError = error
+            
+            if attempt < maxRetries {
+                // Exponential backoff: 2^attempt seconds
+                let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                print("Retrying in \(pow(2.0, Double(attempt))) seconds...")
+                try await Task.sleep(nanoseconds: delay)
+                continue
+            }
+        } catch SalesforceAuthError.rateLimitExceeded {
+            // Don't retry on rate limit errors
+            throw SalesforceAuthError.rateLimitExceeded
+        } catch {
+            // Don't retry on other errors
+            throw error
+        }
+    }
+    
+    throw lastError ?? SalesforceAuthError.networkError(
+        NSError(domain: "Unknown", code: -1)
+    )
+}
+
+// Usage
+do {
+    let congregation = try await authenticateWithRetry(credentials: credentials)
+} catch {
+    print("Failed after all retry attempts: \(error)")
+}
+```
+
+## Member Errors
+
+The `MemberError` enum handles member-related operation failures:
+
+```swift
+public enum MemberError: Error, LocalizedError, Sendable {
+    /// The requested member was not found in the system
+    case memberNotFound
+    
+    /// The member data received is corrupted or invalid
+    case invalidMemberData
+    
+    /// The API request to fetch member data failed
+    case fetchFailed(Error)
+    
+    /// The member ID format is invalid or doesn't meet requirements
+    case invalidMemberID
+}
+```
+
+### Handling Member Errors
+
+```swift
+import Congregation
+
+do {
+    let memberId = try MemberID(validating: "TKT123456")
+    let member = try await congregation.members.fetch(id: memberId)
+    
+    print("Found member: \(member.memberName ?? "Unknown")")
+    
+} catch MemberError.memberNotFound {
+    // Member doesn't exist in Salesforce
+    print("❌ Member not found")
+    print("The requested member ID does not exist in the system")
+    // Action: Verify member ID or show search interface
+    
+} catch MemberError.invalidMemberID {
+    // Member ID format is invalid
+    print("❌ Invalid member ID format")
+    print("Member IDs must start with 'TKT' (e.g., TKT123456)")
+    // Action: Validate input format
+    
+} catch MemberError.invalidMemberData {
+    // Response data is corrupted
+    print("❌ Invalid member data received")
+    print("The response from Salesforce contains corrupted data")
+    // Action: Log error and contact support
+    
+} catch MemberError.fetchFailed(let underlyingError) {
+    // Network or API error during fetch
+    print("❌ Failed to fetch member: \(underlyingError.localizedDescription)")
+    // Action: Implement retry logic
+    
+} catch {
+    print("❌ Unexpected error: \(error)")
+}
+```
+
+### Validating Member IDs
+
+The `MemberID` struct provides type-safe validation:
+
+```swift
+// Using failable initializer (returns nil if invalid)
+if let memberId = MemberID(rawValue: "tkt123456") {
+    print("Valid ID: \(memberId.rawValue)")  // "TKT123456" (normalized)
+} else {
+    print("Invalid member ID format")
+}
+
+// Using throwing initializer (throws MemberError.invalidMemberID)
+do {
+    let memberId = try MemberID(validating: "TKT123456")
+    let member = try await congregation.members.fetch(id: memberId)
+} catch MemberError.invalidMemberID {
+    print("Member ID must start with 'TKT'")
+}
+
+// Case-insensitive normalization
+let id1 = MemberID(rawValue: "tkt123456")?.rawValue  // "TKT123456"
+let id2 = MemberID(rawValue: "Tkt123456")?.rawValue  // "TKT123456"
+let id3 = MemberID(rawValue: "TKT123456")?.rawValue  // "TKT123456"
+
+// All three are normalized to the same format
+```
+
+### Validation Rules
+
+<ResponseField name="Prefix" type="string">
+  Must start with "TKT" (case-insensitive)
+</ResponseField>
+
+<ResponseField name="Length" type="number">
+  Minimum 3 characters (TKT + at least one character)
+</ResponseField>
+
+<ResponseField name="Normalization" type="string">
+  Automatically converted to uppercase "TKT" prefix
+</ResponseField>
+
+## Comprehensive Error Handling Pattern
+
+Here's a production-ready error handling pattern:
+
+```swift
+import CongregationKit
+import Congregation
+import AsyncHTTPClient
+
+actor ChurchMemberService {
+    private let httpClient: HTTPClient
+    private var congregation: CongregationKit?
+    private let credentials: SalesforceCredentials
+    
+    init(credentials: SalesforceCredentials) {
+        self.httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+        self.credentials = credentials
+    }
+    
+    /// Authenticate with automatic retry
+    func authenticate() async throws {
+        var retryCount = 0
+        let maxRetries = 3
+        
+        while retryCount < maxRetries {
+            do {
+                self.congregation = try await CongregationKit(
+                    httpClient: httpClient,
+                    credentials: credentials
+                )
+                print("✅ Successfully authenticated")
+                return
+                
+            } catch SalesforceAuthError.invalidCredentials {
+                // Don't retry on invalid credentials
+                throw ChurchServiceError.authenticationFailed(
+                    "Invalid credentials. Please check your Salesforce settings."
+                )
+                
+            } catch SalesforceAuthError.networkError(let error) {
+                retryCount += 1
+                if retryCount >= maxRetries {
+                    throw ChurchServiceError.networkUnavailable(
+                        "Failed to connect after \(maxRetries) attempts: \(error.localizedDescription)"
+                    )
+                }
+                
+                // Exponential backoff
+                let delay = UInt64(pow(2.0, Double(retryCount))) * 1_000_000_000
+                try await Task.sleep(nanoseconds: delay)
+                print("Retrying authentication (\(retryCount)/\(maxRetries))...")
+                
+            } catch SalesforceAuthError.rateLimitExceeded {
+                throw ChurchServiceError.rateLimitExceeded(
+                    "Too many authentication attempts. Please wait before retrying."
+                )
+                
+            } catch {
+                throw ChurchServiceError.unknown(error.localizedDescription)
+            }
+        }
+    }
+    
+    /// Fetch member with comprehensive error handling
+    func getMember(id: String) async throws -> Member {
+        guard let congregation = congregation else {
+            throw ChurchServiceError.notAuthenticated(
+                "Must authenticate before fetching members"
+            )
+        }
+        
+        // Validate member ID
+        guard let memberId = MemberID(rawValue: id) else {
+            throw ChurchServiceError.invalidInput(
+                "Member ID must start with 'TKT' (e.g., TKT123456)"
+            )
+        }
+        
+        do {
+            let member = try await congregation.members.fetch(
+                id: memberId,
+                expanded: [.contactInformation, .discipleshipInformation]
+            )
+            return member
+            
+        } catch MemberError.memberNotFound {
+            throw ChurchServiceError.memberNotFound(
+                "Member '\(id)' not found in the system"
+            )
+            
+        } catch MemberError.invalidMemberData {
+            throw ChurchServiceError.dataCorrupted(
+                "Received invalid data for member '\(id)'"
+            )
+            
+        } catch MemberError.fetchFailed(let error) {
+            throw ChurchServiceError.fetchFailed(
+                "Failed to fetch member: \(error.localizedDescription)"
+            )
+            
+        } catch {
+            throw ChurchServiceError.unknown(error.localizedDescription)
+        }
+    }
+    
+    deinit {
+        try? httpClient.syncShutdown()
+    }
+}
+
+// Custom error type for your application
+enum ChurchServiceError: Error, LocalizedError {
+    case notAuthenticated(String)
+    case authenticationFailed(String)
+    case networkUnavailable(String)
+    case rateLimitExceeded(String)
+    case memberNotFound(String)
+    case invalidInput(String)
+    case dataCorrupted(String)
+    case fetchFailed(String)
+    case unknown(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .notAuthenticated(let message),
+             .authenticationFailed(let message),
+             .networkUnavailable(let message),
+             .rateLimitExceeded(let message),
+             .memberNotFound(let message),
+             .invalidInput(let message),
+             .dataCorrupted(let message),
+             .fetchFailed(let message),
+             .unknown(let message):
+            return message
+        }
+    }
+}
+
+// Usage
+let service = ChurchMemberService(credentials: credentials)
+
+do {
+    try await service.authenticate()
+    let member = try await service.getMember(id: "TKT123456")
+    print("Found: \(member.memberName ?? "Unknown")")
+} catch let error as ChurchServiceError {
+    print("Error: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Best Practices
+
+### 1. Always Handle Specific Errors First
+
+```swift
+// ✅ Good: Handle specific errors before generic catch
+do {
+    let member = try await congregation.members.fetch(id: memberId)
+} catch MemberError.memberNotFound {
+    // Handle not found
+} catch MemberError.invalidMemberID {
+    // Handle invalid ID
+} catch {
+    // Handle other errors
+}
+
+// ❌ Bad: Generic catch first
+do {
+    let member = try await congregation.members.fetch(id: memberId)
+} catch {
+    // Generic error - you don't know what went wrong!
+}
+```
+
+### 2. Don't Retry on All Errors
+
+```swift
+// ✅ Good: Only retry on transient errors
+if case .networkError = error {
+    // Retry network errors
+} else {
+    // Don't retry credential or validation errors
+    throw error
+}
+
+// ❌ Bad: Retrying everything wastes time
+for attempt in 1...5 {
+    do {
+        return try await operation()
+    } catch {
+        continue  // Retries even on invalid credentials!
+    }
+}
+```
+
+### 3. Provide Context in Error Messages
+
+```swift
+// ✅ Good: Include context
+throw ChurchServiceError.memberNotFound(
+    "Member '\(memberId.rawValue)' not found in \(campus) campus"
+)
+
+// ❌ Bad: Generic message
+throw ChurchServiceError.memberNotFound("Not found")
+```
+
+### 4. Log Errors for Debugging
+
+```swift
+import OSLog
+
+let logger = Logger(subsystem: "com.church.app", category: "members")
+
+do {
+    let member = try await congregation.members.fetch(id: memberId)
+} catch let error as MemberError {
+    logger.error("Member fetch failed: \(error.localizedDescription, privacy: .public)")
+    logger.debug("Member ID: \(memberId.rawValue, privacy: .private)")
+    throw error
+}
+```
+
+### 5. Display User-Friendly Messages
+
+```swift
+func presentError(_ error: Error) {
+    let message: String
+    let title: String
+    
+    switch error {
+    case MemberError.memberNotFound:
+        title = "Member Not Found"
+        message = "The member you're looking for doesn't exist. Please verify the member ID."
+        
+    case MemberError.invalidMemberID:
+        title = "Invalid Member ID"
+        message = "Member IDs must start with 'TKT' followed by numbers (e.g., TKT123456)."
+        
+    case SalesforceAuthError.networkError:
+        title = "Connection Error"
+        message = "Unable to connect to the server. Please check your internet connection."
+        
+    default:
+        title = "Error"
+        message = "An unexpected error occurred. Please try again."
+    }
+    
+    // Show alert to user
+    showAlert(title: title, message: message)
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Learn about Salesforce OAuth authentication
+  </Card>
+  <Card title="Fetching Members" icon="users" href="/guides/fetching-members">
+    Complete guide to retrieving member data
+  </Card>
+</CardGroup>

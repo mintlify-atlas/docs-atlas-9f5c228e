@@ -1,0 +1,801 @@
+---
+title: "SalesforceClient"
+description: "Low-level client for interacting with the Salesforce API"
+---
+
+## Overview
+
+The `SalesforceClient` actor provides a Swift interface to Salesforce's APIs. It handles authentication and provides type-safe access to various API endpoints.
+
+This is a lower-level client that requires manual authentication management. For a higher-level interface, use [CongregationKit](/api/congregationkit).
+
+## Initialization
+
+### init(httpClient:)
+
+Creates a new Salesforce API client.
+
+<ParamField path="httpClient" type="HTTPClient" required>
+  The AsyncHTTPClient instance to use for making requests
+</ParamField>
+
+```swift
+import AsyncHTTPClient
+import SalesforceClient
+
+let httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+let salesforce = SalesforceClient(httpClient: httpClient)
+```
+
+## Properties
+
+### auth
+
+Routes for Salesforce authentication.
+
+<ResponseField name="auth" type="SalesforceAuthRoutes">
+  Authentication routes for OAuth 2.0 password flow
+</ResponseField>
+
+```swift
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+let authResponse = try await salesforce.auth.authenticate(credentials: credentials)
+print("Access token: \(authResponse.accessToken)")
+print("Instance URL: \(authResponse.instanceUrl)")
+```
+
+### members
+
+Routes for Salesforce member management.
+
+<ResponseField name="members" type="SalesforceMemberRoutes">
+  Member routes for fetching and managing member data
+</ResponseField>
+
+```swift
+let authResponse = try await salesforce.auth.authenticate(credentials: credentials)
+
+let response = try await salesforce.members.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 50
+)
+
+for member in response.members {
+    print(member.memberName ?? "Unknown")
+}
+```
+
+### seekers
+
+Routes for Salesforce seeker management.
+
+<ResponseField name="seekers" type="SalesforceSeekerRoutes">
+  Seeker routes for fetching and managing seeker data
+</ResponseField>
+
+```swift
+let seekerResponse = try await salesforce.seekers.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: .eastCampus,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+```
+
+### files
+
+Routes for Salesforce file downloads.
+
+<ResponseField name="files" type="SalesforceFilesRoutes">
+  File routes for downloading files from Salesforce
+</ResponseField>
+
+```swift
+let fileResponse = try await salesforce.files.download(
+    recordId: "a0x2w000002jxqn",
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl
+)
+```
+
+## Authentication Methods
+
+### authenticate(credentials:)
+
+Authenticates with Salesforce using OAuth 2.0 password flow.
+
+<ParamField path="credentials" type="SalesforceCredentials" required>
+  The Salesforce credentials
+  
+  <Expandable title="SalesforceCredentials properties">
+    <ResponseField name="clientId" type="String">
+      OAuth client ID from your Salesforce connected app
+    </ResponseField>
+    <ResponseField name="clientSecret" type="String">
+      OAuth client secret from your Salesforce connected app
+    </ResponseField>
+    <ResponseField name="username" type="String">
+      Salesforce username for authentication
+    </ResponseField>
+    <ResponseField name="password" type="String">
+      Salesforce password for authentication
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="returns" type="SalesforceAuthResponse">
+  Authentication response containing access token and instance URL
+  
+  <Expandable title="SalesforceAuthResponse properties">
+    <ResponseField name="accessToken" type="String">
+      Access token for API authentication
+    </ResponseField>
+    <ResponseField name="instanceUrl" type="String">
+      Salesforce instance URL for API calls
+    </ResponseField>
+    <ResponseField name="id" type="String">
+      Identity URL for user identification
+    </ResponseField>
+    <ResponseField name="tokenType" type="String">
+      Token type (typically "Bearer")
+    </ResponseField>
+    <ResponseField name="issuedAt" type="String">
+      When the signature was created (Unix epoch seconds)
+    </ResponseField>
+    <ResponseField name="signature" type="String">
+      Base64-encoded HMAC-SHA256 signature
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="throws" type="SalesforceAuthError">
+  Throws if authentication fails
+</ResponseField>
+
+```swift
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+let authResponse = try await salesforce.auth.authenticate(credentials: credentials)
+```
+
+## Member Methods
+
+### fetchAll(accessToken:instanceUrl:pageNumber:pageSize:)
+
+Fetches all members from Salesforce with pagination support.
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ResponseField name="returns" type="MemberResponse">
+  MemberResponse containing members and pagination info
+</ResponseField>
+
+<ResponseField name="throws" type="MemberError">
+  Throws if fetch fails
+</ResponseField>
+
+```swift
+let response = try await salesforce.members.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 100
+)
+
+print("Total members: \(response.metadata?.total ?? 0)")
+for member in response.members {
+    print(member.memberName ?? "Unknown")
+}
+```
+
+### fetchAll(accessToken:instanceUrl:pageNumber:pageSize:nextPageToken:)
+
+Fetches all members with cursor-based pagination support.
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="nextPageToken" type="String?">
+  The next page token for cursor-based pagination (optional)
+</ParamField>
+
+<ResponseField name="returns" type="MemberResponse">
+  MemberResponse containing members and pagination info
+</ResponseField>
+
+```swift
+// First page
+var response = try await salesforce.members.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 50,
+    nextPageToken: nil
+)
+
+// Next page using token
+if let nextToken = response.metadata?.nextPageToken {
+    response = try await salesforce.members.fetchAll(
+        accessToken: authResponse.accessToken,
+        instanceUrl: authResponse.instanceUrl,
+        pageNumber: nil,
+        pageSize: 50,
+        nextPageToken: nextToken
+    )
+}
+```
+
+### fetch(memberId:accessToken:instanceUrl:)
+
+Fetches a specific member by ID.
+
+<ParamField path="memberId" type="MemberID" required>
+  The member ID to fetch (must start with TKT)
+</ParamField>
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ResponseField name="returns" type="Member">
+  The member if found
+</ResponseField>
+
+<ResponseField name="throws" type="MemberError">
+  Throws if member not found or fetch fails
+</ResponseField>
+
+```swift
+let memberId = try MemberID(validating: "TKT123456")
+let member = try await salesforce.members.fetch(
+    memberId: memberId,
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl
+)
+
+print("Member: \(member.memberName ?? "Unknown")")
+```
+
+### fetchAll(accessToken:instanceUrl:pageNumber:pageSize:expanded:)
+
+Fetches all members with optional expanded fields.
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]" required>
+  Array specifying which related information to expand
+</ParamField>
+
+<ResponseField name="returns" type="MemberResponse">
+  MemberResponse containing members with expanded fields
+</ResponseField>
+
+```swift
+let response = try await salesforce.members.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: [.contactInformation, .employmentInformation]
+)
+```
+
+### fetch(memberId:accessToken:instanceUrl:expanded:)
+
+Fetches a specific member by ID with optional expanded information.
+
+<ParamField path="memberId" type="MemberID" required>
+  The member ID to fetch
+</ParamField>
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]" required>
+  Array specifying which related information to expand
+</ParamField>
+
+<ResponseField name="returns" type="Member">
+  The member if found with expanded fields
+</ResponseField>
+
+```swift
+let memberId = try MemberID(validating: "TKT123456")
+let member = try await salesforce.members.fetch(
+    memberId: memberId,
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    expanded: [.contactInformation, .discipleshipInformation]
+)
+```
+
+## Seeker Methods
+
+### fetchAll(accessToken:instanceUrl:pageNumber:pageSize:seekerId:name:campus:leadStatus:email:leadId:contactNumber:)
+
+Fetches a paginated list of seekers from Salesforce.
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="seekerId" type="String?">
+  Filter by seeker ID (optional)
+</ParamField>
+
+<ParamField path="name" type="String?">
+  Filter by name (optional)
+</ParamField>
+
+<ParamField path="campus" type="Campus?">
+  Filter by campus (optional)
+</ParamField>
+
+<ParamField path="leadStatus" type="LeadStatus?">
+  Filter by lead status (optional)
+</ParamField>
+
+<ParamField path="email" type="String?">
+  Filter by email (optional)
+</ParamField>
+
+<ParamField path="leadId" type="String?">
+  Filter by lead ID (optional)
+</ParamField>
+
+<ParamField path="contactNumber" type="String?">
+  Filter by contact number (optional)
+</ParamField>
+
+<ResponseField name="returns" type="SeekerResponse">
+  SeekerResponse containing seekers and pagination info
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws if fetch fails
+</ResponseField>
+
+```swift
+let response = try await salesforce.seekers.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: "John",
+    campus: .eastCampus,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+```
+
+### fetch(identifier:accessToken:instanceUrl:)
+
+Fetches a specific seeker by identifier (leadId or phone).
+
+<ParamField path="identifier" type="String" required>
+  The identifier to fetch (leadId or phone, case-insensitive)
+</ParamField>
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ResponseField name="returns" type="Seeker">
+  The seeker if found
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws if seeker not found or fetch fails
+</ResponseField>
+
+```swift
+let seeker = try await salesforce.seekers.fetch(
+    identifier: "LEAD001",
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl
+)
+```
+
+### fetchAll(accessToken:instanceUrl:)
+
+Fetches all seekers from Salesforce (non-paginated).
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ResponseField name="returns" type="[Seeker]">
+  Array of seekers
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws if fetch fails
+</ResponseField>
+
+```swift
+let seekers = try await salesforce.seekers.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl
+)
+```
+
+## File Methods
+
+### download(recordId:accessToken:instanceUrl:)
+
+Downloads a file from Salesforce using a record ID.
+
+<ParamField path="recordId" type="String" required>
+  The record ID to download the file from (15-18 character alphanumeric Salesforce ID)
+</ParamField>
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+<ResponseField name="returns" type="FileDownloadResponse">
+  File download response containing file data and metadata
+</ResponseField>
+
+<ResponseField name="throws" type="FileDownloadError">
+  Throws if download fails
+</ResponseField>
+
+```swift
+let fileResponse = try await salesforce.files.download(
+    recordId: "a0x2w000002jxqn",
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl
+)
+
+print("Downloaded: \(fileResponse.fullFilename)")
+print("Size: \(fileResponse.fileSize) bytes")
+
+// Save to disk
+try fileResponse.data.write(to: URL(fileURLWithPath: "/tmp/\(fileResponse.fullFilename)"))
+```
+
+## Convenience Methods
+
+### authenticateAndFetchMembers(credentials:)
+
+Authenticates with Salesforce and fetches all members in one operation.
+
+<ParamField path="credentials" type="SalesforceCredentials" required>
+  The Salesforce credentials
+</ParamField>
+
+<ResponseField name="returns" type="[Member]">
+  Array of church members
+</ResponseField>
+
+<ResponseField name="throws" type="SalesforceAuthError | MemberError">
+  Throws if operation fails
+</ResponseField>
+
+```swift
+let members = try await salesforce.authenticateAndFetchMembers(
+    credentials: credentials
+)
+
+for member in members {
+    print(member.memberName ?? "Unknown")
+}
+```
+
+### authenticateAndFetchMember(credentials:memberId:)
+
+Authenticates with Salesforce and fetches a specific member.
+
+<ParamField path="credentials" type="SalesforceCredentials" required>
+  The Salesforce credentials
+</ParamField>
+
+<ParamField path="memberId" type="String" required>
+  The member ID to fetch
+</ParamField>
+
+<ResponseField name="returns" type="Member">
+  The member if found
+</ResponseField>
+
+<ResponseField name="throws" type="SalesforceAuthError | MemberError">
+  Throws if operation fails
+</ResponseField>
+
+```swift
+let member = try await salesforce.authenticateAndFetchMember(
+    credentials: credentials,
+    memberId: "TKT123456"
+)
+```
+
+### authenticateAndDownloadFile(credentials:recordId:)
+
+Authenticates with Salesforce and downloads a file.
+
+<ParamField path="credentials" type="SalesforceCredentials" required>
+  The Salesforce credentials
+</ParamField>
+
+<ParamField path="recordId" type="String" required>
+  The record ID to download the file from
+</ParamField>
+
+<ResponseField name="returns" type="FileDownloadResponse">
+  File download response containing file data and metadata
+</ResponseField>
+
+<ResponseField name="throws" type="SalesforceAuthError | FileDownloadError">
+  Throws if operation fails
+</ResponseField>
+
+```swift
+let fileResponse = try await salesforce.authenticateAndDownloadFile(
+    credentials: credentials,
+    recordId: "a0x2w000002jxqn"
+)
+```
+
+## Complete Example
+
+```swift
+import AsyncHTTPClient
+import SalesforceClient
+
+func main() async throws {
+    let httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+    defer { try? httpClient.syncShutdown() }
+    
+    let salesforce = SalesforceClient(httpClient: httpClient)
+    
+    // Authenticate
+    let credentials = SalesforceCredentials(
+        clientId: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_ID"]!,
+        clientSecret: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_SECRET"]!,
+        username: ProcessInfo.processInfo.environment["SALESFORCE_USERNAME"]!,
+        password: ProcessInfo.processInfo.environment["SALESFORCE_PASSWORD"]!
+    )
+    
+    let authResponse = try await salesforce.auth.authenticate(credentials: credentials)
+    print("Authenticated successfully")
+    
+    // Fetch members
+    let memberResponse = try await salesforce.members.fetchAll(
+        accessToken: authResponse.accessToken,
+        instanceUrl: authResponse.instanceUrl,
+        pageNumber: 1,
+        pageSize: 50
+    )
+    
+    print("Total members: \(memberResponse.metadata?.total ?? 0)")
+    
+    for member in memberResponse.members {
+        print("\(member.memberName ?? "Unknown")")
+    }
+    
+    // Fetch a specific member
+    let memberId = try MemberID(validating: "TKT123456")
+    let member = try await salesforce.members.fetch(
+        memberId: memberId,
+        accessToken: authResponse.accessToken,
+        instanceUrl: authResponse.instanceUrl
+    )
+    
+    print("Found member: \(member.memberName ?? "Unknown")")
+    
+    // Fetch seekers with filters
+    let seekerResponse = try await salesforce.seekers.fetchAll(
+        accessToken: authResponse.accessToken,
+        instanceUrl: authResponse.instanceUrl,
+        pageNumber: 1,
+        pageSize: 50,
+        seekerId: nil,
+        name: nil,
+        campus: .eastCampus,
+        leadStatus: .followUp,
+        email: nil,
+        leadId: nil,
+        contactNumber: nil
+    )
+    
+    for seeker in seekerResponse.seekers {
+        print("Seeker: \(seeker.fullName ?? "Unknown")")
+    }
+    
+    // Download a file
+    let file = try await salesforce.files.download(
+        recordId: "a0x2w000002jxqn",
+        accessToken: authResponse.accessToken,
+        instanceUrl: authResponse.instanceUrl
+    )
+    
+    try file.data.write(to: URL(fileURLWithPath: "/tmp/\(file.fullFilename)"))
+    print("Downloaded \(file.fullFilename)")
+}
+
+try await main()
+```
+
+## Error Handling
+
+```swift
+do {
+    let salesforce = SalesforceClient(httpClient: httpClient)
+    
+    let authResponse = try await salesforce.auth.authenticate(credentials: credentials)
+    
+    let member = try await salesforce.members.fetch(
+        memberId: try MemberID(validating: "TKT123456"),
+        accessToken: authResponse.accessToken,
+        instanceUrl: authResponse.instanceUrl
+    )
+    
+} catch let error as SalesforceAuthError {
+    switch error {
+    case .invalidCredentials:
+        print("Invalid credentials")
+    case .networkError(let underlying):
+        print("Network error: \(underlying)")
+    case .invalidResponse:
+        print("Invalid response from Salesforce")
+    case .serverError(let message):
+        print("Server error: \(message)")
+    case .rateLimitExceeded:
+        print("Rate limit exceeded")
+    }
+} catch let error as MemberError {
+    switch error {
+    case .memberNotFound:
+        print("Member not found")
+    case .invalidMemberID:
+        print("Invalid member ID format")
+    case .fetchFailed(let underlying):
+        print("Fetch failed: \(underlying)")
+    case .invalidMemberData:
+        print("Invalid member data")
+    }
+} catch let error as FileDownloadError {
+    switch error {
+    case .fileNotFound:
+        print("File not found")
+    case .invalidRecordId:
+        print("Invalid record ID")
+    case .downloadFailed(let underlying):
+        print("Download failed: \(underlying)")
+    default:
+        print("File error: \(error.localizedDescription)")
+    }
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Comparison with CongregationKit
+
+`SalesforceClient` is a lower-level client that requires manual authentication management. Use it when you need:
+
+- Fine-grained control over authentication
+- Custom authentication flows
+- Direct access to Salesforce APIs
+
+For most use cases, [CongregationKit](/api/congregationkit) provides a simpler, higher-level interface:
+
+```swift
+// SalesforceClient (manual auth)
+let salesforce = SalesforceClient(httpClient: httpClient)
+let authResponse = try await salesforce.auth.authenticate(credentials: credentials)
+let members = try await salesforce.members.fetchAll(
+    accessToken: authResponse.accessToken,
+    instanceUrl: authResponse.instanceUrl,
+    pageNumber: 1,
+    pageSize: 50
+)
+
+// CongregationKit (automatic auth)
+let congregation = try await CongregationKit(
+    httpClient: httpClient,
+    credentials: credentials
+)
+let members = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50
+)
+```

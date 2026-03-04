@@ -1,0 +1,132 @@
+---
+title: Family
+description: Represents a family unit within the church congregation
+icon: users
+---
+
+## Overview
+
+The `Family` struct represents a family unit within the church congregation. A family groups related members together, providing a household-level view for ministry planning, pastoral care, and demographic analysis.
+
+## Type Definition
+
+```swift
+public struct Family: Codable, Equatable, Sendable
+```
+
+## Properties
+
+<ResponseField name="id" type="FamilyID" required>
+  Unique identifier for this family unit.
+</ResponseField>
+
+<ResponseField name="familyName" type="String?">
+  The family name (e.g., "Smith Family", "Johnson Household").
+</ResponseField>
+
+<ResponseField name="createdDate" type="Date?">
+  Date when this family record was created.
+</ResponseField>
+
+<ResponseField name="lastModifiedDate" type="Date?">
+  Date when this family record was last modified.
+</ResponseField>
+
+<ResponseField name="headOfFamily" type="MemberID?">
+  The member ID of the head of this family.
+</ResponseField>
+
+<ResponseField name="address" type="String?">
+  The primary address for this family.
+</ResponseField>
+
+<ResponseField name="homePhone" type="String?">
+  The home phone number for this family.
+</ResponseField>
+
+<ResponseField name="notes" type="String?">
+  Optional notes about this family.
+</ResponseField>
+
+## Initializer
+
+```swift
+public init(
+    id: FamilyID,
+    familyName: String? = nil,
+    createdDate: Date? = nil,
+    lastModifiedDate: Date? = nil,
+    headOfFamily: MemberID? = nil,
+    address: String? = nil,
+    homePhone: String? = nil,
+    notes: String? = nil
+)
+```
+
+### Parameters
+
+- `id`: Unique identifier for the family
+- `familyName`: The family name
+- `createdDate`: Date when the record was created
+- `lastModifiedDate`: Date when the record was last modified
+- `headOfFamily`: Member ID of the head of family
+- `address`: Primary address for the family
+- `homePhone`: Home phone number
+- `notes`: Optional notes about the family
+
+## Example Usage
+
+### Creating a Family
+
+```swift
+let family = Family(
+    id: FamilyID(rawValue: "FAM001")!,
+    familyName: "Smith Family",
+    headOfFamily: MemberID(rawValue: "TKT1234")!,
+    address: "123 Main Street",
+    homePhone: "555-0123"
+)
+
+print("Family: \(family.familyName ?? "Unknown")")
+print("Address: \(family.address ?? "Not provided")")
+```
+
+### Fetching a Family
+
+```swift
+let congregation = CongregationKit(auth: auth)
+let family = try await congregation.families.fetch(id: familyId)
+
+if let headId = family.headOfFamily {
+    let head = try await congregation.members.fetch(id: headId)
+    print("Head of household: \(head.memberName ?? "Unknown")")
+}
+```
+
+### Updating Family Information
+
+```swift
+let updatedFamily = Family(
+    id: existingFamily.id,
+    familyName: existingFamily.familyName,
+    headOfFamily: existingFamily.headOfFamily,
+    address: "456 New Address",
+    homePhone: existingFamily.homePhone
+)
+
+let saved = try await congregation.families.updateFamily(updatedFamily)
+print("Family updated: \(saved.address ?? "")")
+```
+
+## Related Types
+
+- [FamilyID](/api/families/relationship-types#familyid) - Type-safe family identifier
+- [FamilyHandler](/api/families/family-handler) - Protocol for family operations
+- [FamilyInfo](/api/families/family-handler#familyinfo) - Comprehensive family information
+- [MemberID](/api/members/member#memberid) - Type-safe member identifier
+
+## See Also
+
+- [FamilyHandler Protocol](/api/families/family-handler)
+- [FamilyTree](/api/families/family-tree)
+- [Managing Families](/guides/working-with-families)

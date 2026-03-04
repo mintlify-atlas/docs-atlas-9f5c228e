@@ -1,0 +1,438 @@
+---
+title: Field Expansion
+description: Optimize API performance by selectively fetching only the member data you need
+icon: arrows-maximize
+---
+
+## Overview
+
+The `MemberExpand` system allows you to **selectively fetch** only the data you need when retrieving member information. This reduces payload size, improves response times, and minimizes network bandwidth usage.
+
+<Note>
+  By default, member fetches return only core fields. Use field expansion to include additional information like contact details, employment, marital status, and discipleship data.
+</Note>
+
+## Why Field Expansion Matters
+
+### Performance Benefits
+
+- **Reduced Payload Size**: Only fetch the data you need, not everything
+- **Faster Response Times**: Smaller payloads transfer faster over the network
+- **Lower Bandwidth**: Critical for mobile applications with limited data
+- **Better UX**: Faster data loading means better user experience
+
+### Real-World Impact
+
+```swift
+// ❌ Without field expansion: ~5KB per member (all fields)
+let member = try await congregation.members.fetch(id: memberId)
+
+// ✅ With field expansion: ~1KB per member (only contact info)
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation]
+)
+
+// For 1000 members:
+// Without expansion: ~5MB total
+// With expansion: ~1MB total (80% reduction!)
+```
+
+## Available Expansion Fields
+
+The `MemberExpand` enum defines which related information to include:
+
+```swift
+public enum MemberExpand: String, Codable, Sendable {
+    /// Expand employment information
+    case employmentInformation
+    
+    /// Expand contact information
+    case contactInformation
+    
+    /// Expand marital information
+    case martialInformation
+    
+    /// Expand discipleship and spiritual information
+    case discipleshipInformation
+}
+```
+
+### Employment Information
+
+Includes work-related data:
+
+- Employment status (employed, self-employed, student, etc.)
+- Organization name
+- Occupation category
+- Industry sector
+- Occupation subcategory
+
+```swift
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.employmentInformation]
+)
+
+if let employment = member.employmentInformation {
+    print("Status: \(employment.employmentStatus?.displayName ?? "Unknown")")
+    print("Organization: \(employment.nameOfTheOrganization ?? "N/A")")
+    print("Occupation: \(employment.occupation?.displayName ?? "N/A")")
+    print("Sector: \(employment.sector?.displayName ?? "N/A")")
+}
+```
+
+### Contact Information
+
+Includes communication details:
+
+- Phone number
+- Email address
+- Physical address
+- Area/region
+- WhatsApp number
+- Alternate phone number
+- Professional designation
+- Location
+
+```swift
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation]
+)
+
+if let contact = member.contactInformation {
+    print("Email: \(contact.email ?? "N/A")")
+    print("Phone: \(contact.phoneNumber ?? "N/A")")
+    print("Address: \(contact.address ?? "N/A")")
+    print("WhatsApp: \(contact.whatsappNumber ?? "N/A")")
+}
+```
+
+### Marital Information
+
+Includes family-related data:
+
+- Marital status (single, married, widowed, etc.)
+- Spouse name
+- Wedding anniversary with age calculations
+- Number of children
+
+```swift
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.martialInformation]
+)
+
+if let marital = member.maritalInformation {
+    print("Status: \(marital.maritalStatus?.displayName ?? "Unknown")")
+    print("Spouse: \(marital.spouseName ?? "N/A")")
+    
+    if let anniversary = marital.weddingAnniversaryInfo {
+        print("Anniversary: \(anniversary.formattedDate)")
+        print("Years married: \(anniversary.yearsMarried)")
+    }
+    
+    if let children = marital.numberOfChildren {
+        print("Children: \(children)")
+    }
+}
+```
+
+### Discipleship Information
+
+Includes spiritual journey data:
+
+- Born again date
+- Water baptism status and date
+- Holy Spirit filling experience
+- Course completion (Prayer, Foundation, Bible)
+- Life transformation camp attendance
+- Ministry involvement and serving status
+- YouTube/WhatsApp subscriptions
+- Missionary involvement
+
+```swift
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.discipleshipInformation]
+)
+
+if let discipleship = member.discipleshipInformation {
+    // Baptism status
+    if let baptism = discipleship.waterBaptism {
+        print("Baptized: \(baptism.received)")
+        if let date = baptism.date {
+            print("Baptism date: \(date)")
+        }
+    }
+    
+    // Ministry involvement
+    if let serving = discipleship.serving {
+        print("Serving: \(serving.involved?.displayName ?? "Not serving")")
+        print("Department: \(serving.primaryDepartment?.displayName ?? "N/A")")
+    }
+    
+    // Course completion
+    if let prayerCourse = discipleship.prayerCourse {
+        print("Prayer course: \(prayerCourse.completed ? "Completed" : "Not completed")")
+    }
+}
+```
+
+## Fetching a Single Member with Expansion
+
+Use the `fetch(id:expanded:)` method to retrieve one member with specific fields:
+
+```swift
+import CongregationKit
+import Congregation
+
+// Fetch member with contact and employment info
+let memberId = try MemberID(validating: "TKT123456")
+
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation, .employmentInformation]
+)
+
+// Access expanded fields
+print("Name: \(member.memberName ?? "Unknown")")
+
+if let contact = member.contactInformation {
+    print("Email: \(contact.email ?? "N/A")")
+}
+
+if let employment = member.employmentInformation {
+    print("Occupation: \(employment.occupation?.displayName ?? "N/A")")
+}
+```
+
+<ParamField path="id" type="MemberID" required>
+  Type-safe member ID (must start with "TKT")
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]" required>
+  Array of fields to expand (e.g., `[.contactInformation, .employmentInformation]`)
+</ParamField>
+
+## Fetching Multiple Members with Expansion
+
+Use the `fetchAll(pageNumber:pageSize:expanded:)` method for paginated results with expansion:
+
+```swift
+// Fetch 100 members with contact and discipleship info
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    expanded: [.contactInformation, .discipleshipInformation]
+)
+
+print("Total members: \(response.totalSize)")
+print("Fetched: \(response.members.count) members")
+
+for member in response.members {
+    // Contact info is available
+    if let email = member.contactInformation?.email {
+        print("\(member.memberName ?? "Unknown"): \(email)")
+    }
+    
+    // Discipleship info is available
+    if let baptized = member.discipleshipInformation?.waterBaptism?.received {
+        print("  Baptized: \(baptized)")
+    }
+}
+```
+
+## Combining Multiple Expansions
+
+You can expand multiple field groups in a single request:
+
+```swift
+// Get comprehensive member profile
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [
+        .contactInformation,
+        .employmentInformation,
+        .martialInformation,
+        .discipleshipInformation
+    ]
+)
+
+// All information is now available
+if let contact = member.contactInformation {
+    print("Contact: \(contact.email ?? "N/A")")
+}
+
+if let employment = member.employmentInformation {
+    print("Employment: \(employment.employmentStatus?.displayName ?? "N/A")")
+}
+
+if let marital = member.maritalInformation {
+    print("Marital: \(marital.maritalStatus?.displayName ?? "N/A")")
+}
+
+if let discipleship = member.discipleshipInformation {
+    print("Baptized: \(discipleship.waterBaptism?.received ?? false)")
+}
+```
+
+<Warning>
+  Including all expansions increases payload size. Only expand fields you actually need for your use case.
+</Warning>
+
+## Filtering Expanded Fields Locally
+
+The `Member` struct includes a `withFilteredFields(expanded:)` method to filter fields locally:
+
+```swift
+// Fetch member with all fields
+let fullMember = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [
+        .contactInformation,
+        .employmentInformation,
+        .martialInformation,
+        .discipleshipInformation
+    ]
+)
+
+// Create a filtered copy with only contact info
+let filteredMember = fullMember.withFilteredFields(
+    expanded: [.contactInformation]
+)
+
+// Only contact information is present
+assert(filteredMember.contactInformation != nil)
+assert(filteredMember.employmentInformation == nil)
+assert(filteredMember.maritalInformation == nil)
+assert(filteredMember.discipleshipInformation == nil)
+```
+
+<Note>
+  This is useful when you need to pass a subset of member data to different parts of your application while maintaining a single source of truth.
+</Note>
+
+## Performance Comparison
+
+Here's a real-world performance comparison:
+
+| Scenario | Payload Size | Network Time | Use Case |
+|----------|-------------|--------------|----------|
+| No expansion (core only) | ~500 bytes | ~50ms | Member lists, search results |
+| Contact info only | ~1KB | ~75ms | Contact management, email campaigns |
+| Employment only | ~800 bytes | ~60ms | Demographics, reports |
+| All fields expanded | ~5KB | ~200ms | Detailed member profiles |
+
+## Best Practices
+
+### 1. Only Expand What You Need
+
+```swift
+// ✅ Good: Only expand fields you'll use
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation]  // Just need email/phone
+)
+
+// ❌ Bad: Expanding everything when you only need contact info
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [
+        .contactInformation,
+        .employmentInformation,
+        .martialInformation,
+        .discipleshipInformation
+    ]
+)
+```
+
+### 2. Use Different Expansions for Different Views
+
+```swift
+// List view: No expansion (fast loading)
+let listResponse = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: []  // Core fields only
+)
+
+// Detail view: Full expansion (complete profile)
+let detailMember = try await congregation.members.fetch(
+    id: selectedMemberId,
+    expanded: [
+        .contactInformation,
+        .employmentInformation,
+        .martialInformation,
+        .discipleshipInformation
+    ]
+)
+```
+
+### 3. Consider Mobile Data Usage
+
+For mobile apps, minimize data usage:
+
+```swift
+// Check network connection type
+if isOnCellularData {
+    // Fetch minimal data
+    let member = try await congregation.members.fetch(
+        id: memberId,
+        expanded: [.contactInformation]  // Only essential fields
+    )
+} else {
+    // On WiFi: fetch everything
+    let member = try await congregation.members.fetch(
+        id: memberId,
+        expanded: [
+            .contactInformation,
+            .employmentInformation,
+            .martialInformation,
+            .discipleshipInformation
+        ]
+    )
+}
+```
+
+### 4. Cache Expanded Data
+
+Cache fully expanded member data to avoid repeated fetches:
+
+```swift
+actor MemberCache {
+    private var cache: [String: Member] = [:]
+    
+    func getMember(id: MemberID, congregation: CongregationKit) async throws -> Member {
+        if let cached = cache[id.rawValue] {
+            return cached
+        }
+        
+        // Fetch with full expansion and cache
+        let member = try await congregation.members.fetch(
+            id: id,
+            expanded: [
+                .contactInformation,
+                .employmentInformation,
+                .martialInformation,
+                .discipleshipInformation
+            ]
+        )
+        
+        cache[id.rawValue] = member
+        return member
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/concepts/error-handling">
+    Learn how to handle errors when fetching member data
+  </Card>
+  <Card title="Fetching Members" icon="users" href="/guides/fetching-members">
+    Complete guide to retrieving member data
+  </Card>
+</CardGroup>

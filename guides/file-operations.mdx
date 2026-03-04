@@ -1,0 +1,497 @@
+---
+title: 'File Operations'
+description: 'Download files from Salesforce using CongregationKit'
+icon: 'file-arrow-down'
+---
+
+CongregationKit provides a simple interface for downloading files from Salesforce ContentDocument storage, including member photos, documents, and other attachments.
+
+## Basic Usage
+
+Download a file using its Salesforce record ID:
+
+```swift
+import CongregationKit
+import AsyncHTTPClient
+import Foundation
+
+let httpClient = HTTPClient.shared
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+let congregation = try await CongregationKit(httpClient: httpClient, credentials: credentials)
+
+// Download file by record ID
+let recordId = "a0x2w000002jxqn"
+let fileResponse = try await congregation.files.download(recordId: recordId)
+
+print("Downloaded: \(fileResponse.fullFilename)")
+print("Size: \(fileResponse.fileSize) bytes")
+print("Type: \(fileResponse.contentType)")
+```
+
+## File Response Structure
+
+The `FileDownloadResponse` contains comprehensive file information:
+
+```swift
+let fileResponse = try await congregation.files.download(recordId: recordId)
+
+// File data
+let data: Data = fileResponse.data
+
+// File metadata
+let filename = fileResponse.filename              // "document"
+let fileExtension = fileResponse.fileExtension    // "pdf"
+let fullFilename = fileResponse.fullFilename      // "document.pdf"
+
+// Content information
+let contentType = fileResponse.contentType        // "application/pdf"
+let fileSize = fileResponse.fileSize              // Size in bytes
+
+// Salesforce identifiers
+let recordId = fileResponse.recordId              // Original record ID
+let contentDocumentId = fileResponse.contentDocumentId  // Content document ID
+```
+
+## Saving Files to Disk
+
+<Tabs>
+  <Tab title="macOS/iOS">
+    ```swift
+    let fileResponse = try await congregation.files.download(recordId: recordId)
+    
+    // Get documents directory
+    let documentsURL = FileManager.default.urls(
+        for: .documentDirectory, 
+        in: .userDomainMask
+    )[0]
+    
+    // Create file URL
+    let fileURL = documentsURL.appendingPathComponent(fileResponse.fullFilename)
+    
+    // Write file to disk
+    try fileResponse.data.write(to: fileURL)
+    
+    print("File saved to: \(fileURL.path)")
+    ```
+  </Tab>
+
+  <Tab title="Server (Linux)">
+    ```swift
+    let fileResponse = try await congregation.files.download(recordId: recordId)
+    
+    // Define save path
+    let savePath = "/var/www/uploads/\(fileResponse.fullFilename)"
+    let fileURL = URL(fileURLWithPath: savePath)
+    
+    // Ensure directory exists
+    let directory = fileURL.deletingLastPathComponent()
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    
+    // Write file
+    try fileResponse.data.write(to: fileURL)
+    
+    print("File saved to: \(savePath)")
+    ```
+  </Tab>
+
+  <Tab title="Custom Directory">
+    ```swift
+    let fileResponse = try await congregation.files.download(recordId: recordId)
+    
+    // Custom directory path
+    let customPath = "./downloads/\(fileResponse.fullFilename)"
+    let fileURL = URL(fileURLWithPath: customPath)
+    
+    // Create directory if needed
+    let directory = fileURL.deletingLastPathComponent()
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    
+    // Save file
+    try fileResponse.data.write(to: fileURL)
+    
+    print("Downloaded \(fileResponse.fileSize) bytes to \(customPath)")
+    ```
+  </Tab>
+</Tabs>
+
+## Working with Different File Types
+
+### Images
+
+```swift
+import Foundation
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
+let fileResponse = try await congregation.files.download(recordId: imageRecordId)
+
+// Check if it's an image
+if fileResponse.contentType.hasPrefix("image/") {
+    print("Image type: \(fileResponse.fileExtension)")
+    
+    #if canImport(UIKit)
+    // iOS/tvOS
+    if let image = UIImage(data: fileResponse.data) {
+        print("Image size: \(image.size)")
+        // Use image in your app
+    }
+    #elseif canImport(AppKit)
+    // macOS
+    if let image = NSImage(data: fileResponse.data) {
+        print("Image size: \(image.size)")
+        // Use image in your app
+    }
+    #endif
+}
+```
+
+### PDFs
+
+```swift
+import PDFKit
+
+let fileResponse = try await congregation.files.download(recordId: pdfRecordId)
+
+if fileResponse.contentType == "application/pdf" {
+    let pdfDocument = PDFDocument(data: fileResponse.data)
+    print("PDF pages: \(pdfDocument?.pageCount ?? 0)")
+    
+    // Save or display PDF
+    let fileURL = URL(fileURLWithPath: "./downloads/\(fileResponse.fullFilename)")
+    try fileResponse.data.write(to: fileURL)
+}
+```
+
+### Text Files
+
+```swift
+let fileResponse = try await congregation.files.download(recordId: textRecordId)
+
+if fileResponse.contentType.hasPrefix("text/") {
+    if let content = String(data: fileResponse.data, encoding: .utf8) {
+        print("File content:")
+        print(content)
+    }
+}
+```
+
+## Handling File Names
+
+The SDK automatically decodes file names from the Content-Disposition header:
+
+```swift
+let fileResponse = try await congregation.files.download(recordId: recordId)
+
+// Original filename from Salesforce (may have special characters)
+let originalName = fileResponse.fullFilename
+// Example: "WhatsApp Image 2024-06-09 at 8.39.03 PM.jpeg"
+
+// Create sanitized filename for filesystem
+let sanitizedName = originalName
+    .replacingOccurrences(of: " ", with: "_")
+    .replacingOccurrences(of: ":", with: "-")
+// Result: "WhatsApp_Image_2024-06-09_at_8.39.03_PM.jpeg"
+
+let fileURL = URL(fileURLWithPath: "./downloads/\(sanitizedName)")
+try fileResponse.data.write(to: fileURL)
+```
+
+## Batch File Downloads
+
+Download multiple files efficiently:
+
+```swift
+let recordIds = [
+    "a0x2w000002jxqn",
+    "a0x2w000002jxqo",
+    "a0x2w000002jxqp"
+]
+
+// Download files concurrently
+await withThrowingTaskGroup(of: FileDownloadResponse.self) { group in
+    for recordId in recordIds {
+        group.addTask {
+            try await congregation.files.download(recordId: recordId)
+        }
+    }
+    
+    // Process downloaded files
+    for try await fileResponse in group {
+        let fileURL = URL(fileURLWithPath: "./downloads/\(fileResponse.fullFilename)")
+        try fileResponse.data.write(to: fileURL)
+        print("Downloaded: \(fileResponse.fullFilename)")
+    }
+}
+```
+
+## Download Progress Tracking
+
+<Note>
+  The current SDK doesn't provide built-in progress tracking. For large files, consider implementing custom progress tracking using AsyncHTTPClient directly.
+</Note>
+
+## Error Handling
+
+<Tabs>
+  <Tab title="Basic Error Handling">
+    ```swift
+    do {
+        let fileResponse = try await congregation.files.download(recordId: recordId)
+        print("Downloaded: \(fileResponse.fullFilename)")
+    } catch {
+        print("Failed to download file: \(error.localizedDescription)")
+    }
+    ```
+  </Tab>
+
+  <Tab title="Specific Errors">
+    ```swift
+    do {
+        let fileResponse = try await congregation.files.download(recordId: recordId)
+        // Save file
+        let fileURL = URL(fileURLWithPath: "./downloads/\(fileResponse.fullFilename)")
+        try fileResponse.data.write(to: fileURL)
+    } catch FileDownloadError.fileNotFound {
+        print("File not found for record ID: \(recordId)")
+    } catch FileDownloadError.invalidRecordId {
+        print("Invalid record ID format")
+    } catch FileDownloadError.noFilesAssociated {
+        print("No files are associated with this record")
+    } catch FileDownloadError.contentVersionNotFound {
+        print("File content version not found")
+    } catch FileDownloadError.networkError(let error) {
+        print("Network error: \(error.localizedDescription)")
+    } catch FileDownloadError.serverError(let message) {
+        print("Server error: \(message)")
+    } catch {
+        print("Unexpected error: \(error)")
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## File Size Validation
+
+Validate file sizes before processing:
+
+```swift
+let fileResponse = try await congregation.files.download(recordId: recordId)
+
+// Check file size
+let maxSize = 10 * 1024 * 1024  // 10 MB
+if fileResponse.fileSize > maxSize {
+    print("File too large: \(fileResponse.fileSize) bytes")
+} else {
+    print("File size OK: \(fileResponse.fileSize) bytes")
+    // Process file
+}
+
+// Format file size for display
+let formatter = ByteCountFormatter()
+formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
+formatter.countStyle = .file
+let sizeString = formatter.string(fromByteCount: Int64(fileResponse.fileSize))
+print("Size: \(sizeString)")
+```
+
+## Content Type Detection
+
+Work with different content types:
+
+```swift
+let fileResponse = try await congregation.files.download(recordId: recordId)
+
+switch fileResponse.contentType {
+case let type where type.hasPrefix("image/"):
+    print("Image file: \(fileResponse.fileExtension)")
+    // Process as image
+    
+case "application/pdf":
+    print("PDF document")
+    // Process as PDF
+    
+case let type where type.hasPrefix("text/"):
+    print("Text file")
+    // Process as text
+    
+case "application/msword", 
+     "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    print("Word document")
+    // Process as Word doc
+    
+case "application/vnd.ms-excel",
+     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+    print("Excel spreadsheet")
+    // Process as Excel
+    
+default:
+    print("Other file type: \(fileResponse.contentType)")
+}
+```
+
+## Getting Record IDs
+
+To download files, you need the Salesforce record ID. Here's how to get them:
+
+### From Member Photos
+
+```swift
+let member = try await congregation.members.fetch(id: memberId)
+
+if let photo = member.photo {
+    // Photo URL contains the record ID
+    print("Photo URL: \(photo.url)")
+    
+    // Extract record ID from URL
+    // URL format: https://instance.salesforce.com/servlet/servlet.FileDownload?file=RECORD_ID
+    if let url = URL(string: photo.url),
+       let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+       let fileParam = queryItems.first(where: { $0.name == "file" }),
+       let recordId = fileParam.value {
+        
+        // Download the photo
+        let fileResponse = try await congregation.files.download(recordId: recordId)
+        print("Downloaded photo: \(fileResponse.fullFilename)")
+    }
+}
+```
+
+### From Custom Fields
+
+```swift
+// If your Salesforce setup stores file IDs in custom fields
+// Access them through member data and download
+
+let member = try await congregation.members.fetch(id: memberId)
+
+// Example: Custom field containing file ID
+// let documentId = member.customField // Depends on your Salesforce schema
+
+// Download the file
+// let fileResponse = try await congregation.files.download(recordId: documentId)
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Validate Record IDs" icon="check">
+    Always validate record IDs before attempting downloads to avoid unnecessary API calls.
+  </Card>
+  
+  <Card title="Handle File Sizes" icon="weight-scale">
+    Check file sizes before downloading large files to manage memory usage appropriately.
+  </Card>
+  
+  <Card title="Sanitize Filenames" icon="broom">
+    Clean filenames before saving to disk to avoid filesystem issues with special characters.
+  </Card>
+  
+  <Card title="Error Handling" icon="shield">
+    Always wrap download operations in proper error handling to gracefully handle failures.
+  </Card>
+</CardGroup>
+
+## Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Download Member Photos">
+    ```swift
+    let members = try await congregation.members.fetchAll(pageNumber: 1, pageSize: 50)
+    
+    for member in members.members {
+        guard let photo = member.photo,
+              let url = URL(string: photo.url),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let recordId = components.queryItems?.first(where: { $0.name == "file" })?.value
+        else { continue }
+        
+        let fileResponse = try await congregation.files.download(recordId: recordId)
+        
+        let filename = "\(member.memberId?.rawValue ?? "unknown")_photo.\(fileResponse.fileExtension)"
+        let fileURL = URL(fileURLWithPath: "./photos/\(filename)")
+        try fileResponse.data.write(to: fileURL)
+        
+        print("Downloaded photo for \(member.memberName ?? "Unknown")")
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Archive Documents">
+    ```swift
+    // Download and archive all documents
+    let recordIds = getDocumentRecordIds()  // Your method to get IDs
+    
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy-MM-dd"
+    let archivePath = "./archive/\(dateFormatter.string(from: Date()))"
+    
+    // Create archive directory
+    try FileManager.default.createDirectory(
+        atPath: archivePath,
+        withIntermediateDirectories: true
+    )
+    
+    for recordId in recordIds {
+        let fileResponse = try await congregation.files.download(recordId: recordId)
+        let fileURL = URL(fileURLWithPath: "\(archivePath)/\(fileResponse.fullFilename)")
+        try fileResponse.data.write(to: fileURL)
+    }
+    
+    print("Archived \(recordIds.count) documents to \(archivePath)")
+    ```
+  </Accordion>
+
+  <Accordion title="Generate Thumbnails">
+    ```swift
+    #if canImport(UIKit)
+    import UIKit
+    
+    let fileResponse = try await congregation.files.download(recordId: imageRecordId)
+    
+    if fileResponse.contentType.hasPrefix("image/"),
+       let image = UIImage(data: fileResponse.data) {
+        
+        // Create thumbnail
+        let thumbnailSize = CGSize(width: 150, height: 150)
+        let renderer = UIGraphicsImageRenderer(size: thumbnailSize)
+        let thumbnail = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: thumbnailSize))
+        }
+        
+        // Save thumbnail
+        if let thumbnailData = thumbnail.jpegData(compressionQuality: 0.8) {
+            let thumbURL = URL(fileURLWithPath: "./thumbnails/\(fileResponse.filename)_thumb.jpg")
+            try thumbnailData.write(to: thumbURL)
+        }
+    }
+    #endif
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fetching Members" icon="users" href="/guides/fetching-members">
+    Learn how to fetch member data including photo references
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api/files/file-handler">
+    View complete API reference for file operations
+  </Card>
+</CardGroup>

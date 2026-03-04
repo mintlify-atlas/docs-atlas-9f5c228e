@@ -1,0 +1,241 @@
+---
+title: "Member"
+description: "Represents a church member with comprehensive demographic, contact, employment, marital, and discipleship information."
+---
+
+The `Member` struct is the central data model for church member management, providing a modular, extensible way to represent all aspects of a member's profile.
+
+## Overview
+
+The `Member` struct consolidates member information from Salesforce into logical sub-structs:
+- **Core Identity:** Basic demographics, identifiers, and membership status
+- **Contact Information:** Phone, email, address, and communication preferences
+- **Employment Information:** Work status, organization, occupation, and sector
+- **Marital Information:** Status, spouse details, anniversary tracking, and children
+- **Discipleship Information:** Spiritual journey, courses, ministry involvement, and serving
+
+## Core Properties
+
+<ResponseField name="id" type="String?">
+  Unique identifier for the member from Salesforce.
+</ResponseField>
+
+<ResponseField name="memberId" type="MemberID?">
+  Type-safe member ID that validates and normalizes member IDs (must start with "TKT").
+</ResponseField>
+
+<ResponseField name="memberName" type="String?">
+  Full name of the member, automatically constructed from first, middle, and last name components.
+</ResponseField>
+
+<ResponseField name="firstName" type="String?">
+  First name of the member.
+</ResponseField>
+
+<ResponseField name="middleName" type="String?">
+  Middle name of the member.
+</ResponseField>
+
+<ResponseField name="lastName" type="String?">
+  Last name of the member.
+</ResponseField>
+
+<ResponseField name="gender" type="Gender?">
+  The member's gender. Possible values: `male`, `female`.
+</ResponseField>
+
+<ResponseField name="phone" type="String?">
+  Primary phone number of the member.
+</ResponseField>
+
+<ResponseField name="lifeGroupName" type="String?">
+  Name of the life group the member belongs to.
+</ResponseField>
+
+## Demographic Properties
+
+<ResponseField name="dateOfBirth" type="BirthDateInfo?">
+  Rich birthday information with date components, age calculations, and days until next birthday.
+  
+  **Sub-properties:**
+  - `date: Date` - The original birth date
+  - `year: Int` - Year component
+  - `month: Int` - Month component
+  - `day: Int` - Day component
+  - `age: Int` - Current age in years
+  - `daysUntilNextBirthday: Int` - Days until next birthday
+  - `shortFormat: String` - Date in "day/month" format (e.g., "15/3")
+  - `usFormat: String` - Date in "month/day" format (e.g., "3/15")
+  - `fullFormat: String` - Full date in "day/month/year" format (e.g., "15/3/1990")
+</ResponseField>
+
+<ResponseField name="title" type="MemberTitle?">
+  The member's title. Possible values: `dr`, `mr`, `mrs`, `ms`, `prof`, `rev`, `ps`.
+</ResponseField>
+
+<ResponseField name="memberType" type="MemberType?">
+  The member's type. Possible values: `tkt`, `efam`, `spm`, `iocVillages`, `conferenceEventsOnly`, `tktTeenXYouth`, `kingsKid`, `uae`.
+</ResponseField>
+
+<ResponseField name="bloodGroup" type="BloodGroup?">
+  The member's blood group. Examples: `aPositive`, `bNegative`, `oPositive`, `abNegative`.
+</ResponseField>
+
+<ResponseField name="preferredLanguages" type="[PreferredLanguage]?">
+  Array of preferred languages. Possible values: `english`, `telugu`, `hindi`.
+</ResponseField>
+
+## Membership Properties
+
+<ResponseField name="attendingCampus" type="AttendingCampus?">
+  The campus the member is attending. Possible values: `eastLBNagar`, `westKukatpally`, `westHiTechCity`, `centralSecunderabad`.
+</ResponseField>
+
+<ResponseField name="serviceCampus" type="ServiceCampus?">
+  The campus where the member serves.
+</ResponseField>
+
+<ResponseField name="partOfLifeGroup" type="Bool?">
+  Whether the member is part of a life group.
+</ResponseField>
+
+<ResponseField name="status" type="MemberStatus?">
+  The member's status. Possible values: `regular`, `irregular`, `relocated`, `longTimeAbsentee`, `doNotCall`, `leftTheChurch`, `promotedToGlory`, `active`, `doNotContact`, `inActive`, `inactiveDNC`.
+</ResponseField>
+
+<ResponseField name="campus" type="Campus?">
+  The campus the member is associated with.
+</ResponseField>
+
+<ResponseField name="spm" type="Bool?">
+  Whether the member is part of SPM (School of Practical Ministry).
+</ResponseField>
+
+<ResponseField name="attendingService" type="AttendingService?">
+  The service the member is attending. Examples: `firstService`, `secondService`, `online`, `fridayNightService`.
+</ResponseField>
+
+## Related Information
+
+<ResponseField name="contactInformation" type="ContactInformation?">
+  Comprehensive contact information including phone, email, address, and WhatsApp.
+  
+  See [ContactInformation](/api/members/contact-information) for details.
+</ResponseField>
+
+<ResponseField name="employmentInformation" type="EmploymentInformation?">
+  Employment and professional information including status, organization, occupation, and sector.
+  
+  See [EmploymentInformation](/api/members/employment-information) for details.
+</ResponseField>
+
+<ResponseField name="maritalInformation" type="MaritalInformation?">
+  Marital status and family information including spouse, anniversary, and children.
+  
+  See [MaritalInformation](/api/members/marital-information) for details.
+</ResponseField>
+
+<ResponseField name="discipleshipInformation" type="DiscipleshipInformation?">
+  Spiritual journey and discipleship information including baptism, courses, and ministry involvement.
+  
+  See [DiscipleshipInformation](/api/members/discipleship-information) for details.
+</ResponseField>
+
+<ResponseField name="photo" type="MemberPhoto?">
+  The parsed member photo with URL and metadata extracted from HTML.
+  
+  **Sub-properties:**
+  - `url: String` - Direct image URL
+  - `alt: String?` - Alt text description
+  - `tags: [String]` - Tags for the photo (e.g., "whatsapp")
+</ResponseField>
+
+## Date Tracking
+
+<ResponseField name="createdDate" type="Date?">
+  Date when the member record was created in Salesforce.
+</ResponseField>
+
+<ResponseField name="lastModifiedDate" type="Date?">
+  Date when the member record was last modified in Salesforce.
+</ResponseField>
+
+## Example Usage
+
+```swift
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456")
+)
+
+// Access basic information
+print("Name: \(member.memberName ?? "Unknown")")
+print("Phone: \(member.phone ?? "No phone")")
+print("Status: \(member.status?.displayName ?? "Unknown")")
+
+// Access rich date information
+if let birthday = member.dateOfBirth {
+    print("Age: \(birthday.age)")
+    print("Next birthday in: \(birthday.daysUntilNextBirthday) days")
+}
+
+// Check spiritual milestones
+if member.discipleshipInformation?.waterBaptism?.received == true {
+    print("Member has been baptized")
+}
+
+// Check ministry involvement
+if let serving = member.discipleshipInformation?.serving {
+    print("Ministry: \(serving.involved?.displayName ?? "Not specified")")
+    print("Department: \(serving.primaryDepartment?.displayName ?? "Not specified")")
+}
+```
+
+## Accessing Nested Data
+
+The `Member` struct provides convenient access to nested data through protocol conformance:
+
+```swift
+// Access contact information directly or through nested struct
+let phone = member.phone // Direct access
+let email = member.email // Through ContactInformationRepresentable
+let whatsapp = member.whatsappNumber // Through ContactInformationRepresentable
+
+// Access employment information
+let status = member.employmentStatus // Through EmploymentInformationRepresentable
+let occupation = member.occupation // Through EmploymentInformationRepresentable
+
+// Access marital information
+let maritalStatus = member.maritalStatus // Through MaritalInformationRepresentable
+let anniversary = member.weddingAnniversary // Through MaritalInformationRepresentable
+
+// Access discipleship information
+let waterBaptism = member.waterBaptism // Through DiscipleshipInformationRepresentable
+let serving = member.serving // Through DiscipleshipInformationRepresentable
+```
+
+## Field Expansion
+
+Use [MemberExpand](/api/members/member-expand) to selectively fetch related information:
+
+```swift
+// Fetch member with specific expanded fields
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [.contactInformation, .employmentInformation]
+)
+
+// Only the requested fields will be populated
+print(member.contactInformation) // Available
+print(member.employmentInformation) // Available
+print(member.maritalInformation) // nil (not requested)
+print(member.discipleshipInformation) // nil (not requested)
+```
+
+## See Also
+
+- [MembersHandler](/api/members/member-handler) - Protocol for fetching members
+- [MemberExpand](/api/members/member-expand) - Field expansion options
+- [ContactInformation](/api/members/contact-information) - Contact details structure
+- [EmploymentInformation](/api/members/employment-information) - Employment details structure
+- [MaritalInformation](/api/members/marital-information) - Marital details structure
+- [DiscipleshipInformation](/api/members/discipleship-information) - Spiritual journey structure

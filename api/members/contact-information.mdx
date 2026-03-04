@@ -1,0 +1,214 @@
+---
+title: "ContactInformation"
+description: "Represents a member's contact information including phone, email, address, and communication preferences."
+---
+
+The `ContactInformation` struct consolidates all contact-related data for church members, providing a modular way to manage communication channels and location data.
+
+## Properties
+
+<ResponseField name="phoneNumber" type="String?">
+  The member's primary phone number. This is the main contact number for urgent communications, pastoral care, and general church outreach.
+</ResponseField>
+
+<ResponseField name="email" type="String?">
+  The member's email address. Used for digital communications, newsletters, announcements, and formal church communications.
+</ResponseField>
+
+<ResponseField name="address" type="String?">
+  The member's physical address. Complete street address for pastoral visits, home ministry, and event planning. Can include street, city, state, and postal code.
+</ResponseField>
+
+<ResponseField name="area" type="String?">
+  The member's area or locality. A broader geographic identifier (e.g., "Downtown", "North Side") used for regional ministry planning and event organization.
+</ResponseField>
+
+<ResponseField name="whatsappNumber" type="String?">
+  The member's WhatsApp number. Dedicated WhatsApp contact for church group communications, event updates, and informal ministry outreach. Often the same as the primary phone number.
+</ResponseField>
+
+<ResponseField name="alternateNumber" type="String?">
+  An alternate contact number for the member. Secondary phone number for backup communication, typically used when the primary number is unavailable.
+</ResponseField>
+
+<ResponseField name="profession" type="String?">
+  The member's profession or job title. Professional background information used for ministry matching, mentoring programs, and skill-based ministry placement (e.g., "Software Engineer", "Teacher", "Healthcare Worker").
+</ResponseField>
+
+<ResponseField name="location" type="String?">
+  The member's location (city, region, etc.). Broader geographic context for ministry planning, regional events, and demographic analysis (e.g., "Tech District", "Healthcare Hub").
+</ResponseField>
+
+## Example Usage
+
+### Basic Access
+
+```swift
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [.contactInformation]
+)
+
+if let contact = member.contactInformation {
+    // Access contact methods
+    if let phone = contact.phoneNumber {
+        print("Primary phone: \(phone)")
+    }
+    
+    if let email = contact.email {
+        print("Email: \(email)")
+    }
+    
+    // Access location information
+    if let address = contact.address {
+        print("Address: \(address)")
+    }
+    
+    if let area = contact.area {
+        print("Area: \(area)")
+    }
+}
+```
+
+### Communication Priority
+
+```swift
+func getPreferredContactMethod(contact: ContactInformation) -> String? {
+    // Priority: Phone -> WhatsApp -> Alternate -> Email
+    if let phone = contact.phoneNumber {
+        return "Call: \(phone)"
+    } else if let whatsapp = contact.whatsappNumber {
+        return "WhatsApp: \(whatsapp)"
+    } else if let alternate = contact.alternateNumber {
+        return "Alternate: \(alternate)"
+    } else if let email = contact.email {
+        return "Email: \(email)"
+    }
+    return nil
+}
+
+if let contact = member.contactInformation,
+   let method = getPreferredContactMethod(contact: contact) {
+    print("Contact via: \(method)")
+}
+```
+
+### Ministry Planning
+
+```swift
+func organizePastoralVisits(members: [Member]) {
+    // Group members by area for efficient pastoral visits
+    var membersByArea: [String: [Member]] = [:]
+    
+    for member in members {
+        if let area = member.contactInformation?.area {
+            membersByArea[area, default: []].append(member)
+        }
+    }
+    
+    for (area, members) in membersByArea {
+        print("\(area): \(members.count) members")
+    }
+}
+```
+
+### Professional Networking
+
+```swift
+func findMembersInProfession(_ profession: String, members: [Member]) -> [Member] {
+    return members.filter { member in
+        guard let contactInfo = member.contactInformation else { return false }
+        return contactInfo.profession?.lowercased().contains(profession.lowercased()) ?? false
+    }
+}
+
+// Find all software engineers
+let engineers = findMembersInProfession("software", members: allMembers)
+print("Found \(engineers.count) software engineers")
+```
+
+## Protocol Conformance
+
+The `Member` struct conforms to `ContactInformationRepresentable`, allowing direct access to contact properties:
+
+```swift
+// Access through member directly (without nested struct)
+let phone = member.phoneNumber           // Same as member.contactInformation?.phoneNumber
+let email = member.email                 // Same as member.contactInformation?.email
+let address = member.address             // Same as member.contactInformation?.address
+let whatsapp = member.whatsappNumber     // Same as member.contactInformation?.whatsappNumber
+```
+
+## Church-Specific Features
+
+### Communication Preferences
+
+```swift
+// Check available communication channels
+func getAvailableChannels(contact: ContactInformation) -> [String] {
+    var channels: [String] = []
+    
+    if contact.phoneNumber != nil {
+        channels.append("Phone")
+    }
+    if contact.email != nil {
+        channels.append("Email")
+    }
+    if contact.whatsappNumber != nil {
+        channels.append("WhatsApp")
+    }
+    if contact.alternateNumber != nil {
+        channels.append("Alternate Phone")
+    }
+    
+    return channels
+}
+
+if let contact = member.contactInformation {
+    let channels = getAvailableChannels(contact: contact)
+    print("Available channels: \(channels.joined(separator: ", "))")
+}
+```
+
+### Geographic Analysis
+
+```swift
+// Analyze member distribution by location
+func analyzeGeographicDistribution(members: [Member]) {
+    var distribution: [String: Int] = [:]
+    
+    for member in members {
+        if let area = member.contactInformation?.area {
+            distribution[area, default: 0] += 1
+        }
+    }
+    
+    print("Member distribution by area:")
+    for (area, count) in distribution.sorted(by: { $0.value > $1.value }) {
+        print("  \(area): \(count) members")
+    }
+}
+```
+
+## Best Practices
+
+### Contact Method Priority
+
+1. **Primary Phone:** Use for urgent communications and pastoral care
+2. **WhatsApp:** Use for group communications and event updates
+3. **Email:** Use for newsletters, announcements, and formal communications
+4. **Alternate Phone:** Use as backup for primary phone
+
+### Ministry Applications
+
+- **Pastoral Care:** Use address and area for home visits
+- **Event Planning:** Use location data for regional event organization
+- **Ministry Matching:** Use profession for skill-based ministry placement
+- **Communication:** Use preferred contact methods for effective outreach
+
+## See Also
+
+- [Member](/api/members/member) - Main member struct
+- [MemberExpand](/api/members/member-expand) - How to expand contact information
+- [EmploymentInformation](/api/members/employment-information) - Employment details
+- [MembersHandler](/api/members/member-handler) - Fetching members with contact info

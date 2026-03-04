@@ -1,0 +1,572 @@
+---
+title: 'Managing Seekers'
+description: 'Seeker (visitor) management and lead tracking in CongregationKit'
+icon: 'user-plus'
+---
+
+CongregationKit provides comprehensive seeker management capabilities for tracking visitors, new believers, and follow-up activities in your church.
+
+## What are Seekers?
+
+Seekers represent individuals who are exploring faith or visiting your church for the first time. The SDK provides tools for:
+- Lead tracking and status management
+- Follow-up coordination
+- Demographic analysis
+- Entry type tracking (new visitor, salvation, returning, etc.)
+
+## Basic Usage
+
+### Fetching All Seekers
+
+```swift
+import CongregationKit
+import AsyncHTTPClient
+
+let httpClient = HTTPClient.shared
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+let congregation = try await CongregationKit(httpClient: httpClient, credentials: credentials)
+
+// Fetch seekers with pagination
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+print("Fetched \(response.seekers.count) seekers")
+```
+
+## Pagination
+
+<Tabs>
+  <Tab title="Page-Based">
+    ```swift
+    // Fetch first page
+    let page1 = try await congregation.seekers.fetchAll(
+        pageNumber: 1,
+        pageSize: 50,
+        seekerId: nil,
+        name: nil,
+        campus: nil,
+        leadStatus: nil,
+        email: nil,
+        leadId: nil,
+        contactNumber: nil
+    )
+    
+    // Check pagination metadata
+    if let metadata = page1.metadata {
+        print("Page: \(metadata.page ?? 0)")
+        print("Total: \(metadata.total ?? 0)")
+        print("Per page: \(metadata.per ?? 0)")
+    }
+    ```
+  </Tab>
+
+  <Tab title="Cursor-Based">
+    ```swift
+    var allSeekers: [Seeker] = []
+    var nextPageToken: String? = nil
+    
+    repeat {
+        let response = try await congregation.seekers.fetchAll(
+            pageNumber: 1,
+            pageSize: 100,
+            nextPageToken: nextPageToken,
+            seekerId: nil,
+            name: nil,
+            campus: nil,
+            leadStatus: nil,
+            email: nil,
+            leadId: nil,
+            contactNumber: nil
+        )
+        
+        allSeekers.append(contentsOf: response.seekers)
+        nextPageToken = response.metadata?.nextPageToken
+        
+    } while nextPageToken != nil
+    
+    print("Total seekers: \(allSeekers.count)")
+    ```
+  </Tab>
+</Tabs>
+
+## Filtering Seekers
+
+### Filter by Lead Status
+
+```swift
+// Fetch seekers requiring follow-up
+let followUpSeekers = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: .followUp,  // Type-safe lead status
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+print("Seekers needing follow-up: \(followUpSeekers.seekers.count)")
+
+// Different lead statuses
+let attemptedSeekers = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: .attempted,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+let convertedSeekers = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: .converted,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+```
+
+### Filter by Campus
+
+```swift
+// Fetch seekers from specific campus
+let eastCampusSeekers = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: .eastCampus,  // Type-safe campus enum
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+print("East Campus seekers: \(eastCampusSeekers.seekers.count)")
+```
+
+### Filter by Contact Information
+
+```swift
+// Search by name
+let nameResults = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: "John",
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+// Search by email
+let emailResults = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: "john@example.com",
+    leadId: nil,
+    contactNumber: nil
+)
+
+// Search by phone
+let phoneResults = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: "+1234567890"
+)
+```
+
+### Combining Filters
+
+```swift
+// Multiple filters for targeted search
+let targetedSeekers = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: .eastCampus,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+print("East Campus seekers needing follow-up: \(targetedSeekers.seekers.count)")
+```
+
+## Fetching a Specific Seeker
+
+Fetch a seeker by their lead ID or phone number:
+
+```swift
+// By lead ID
+let seeker1 = try await congregation.seekers.fetch(identifier: "LEAD001")
+
+// By phone number (case-insensitive)
+let seeker2 = try await congregation.seekers.fetch(identifier: "+1234567890")
+
+print("Seeker: \(seeker1.fullName ?? "Unknown")")
+print("Lead Status: \(seeker1.lead?.status?.displayName ?? "N/A")")
+```
+
+## Working with Seeker Data
+
+### Accessing Basic Information
+
+```swift
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+for seeker in response.seekers {
+    // Basic information
+    print("Name: \(seeker.fullName ?? "Unknown")")
+    print("Email: \(seeker.email ?? "N/A")")
+    print("Phone: \(seeker.phone ?? "N/A")")
+    print("Area: \(seeker.area ?? "N/A")")
+    
+    // Lead information
+    if let lead = seeker.lead {
+        print("Lead ID: \(lead.id ?? "N/A")")
+        print("Status: \(lead.status?.displayName ?? "Unknown")")
+        print("Status (short): \(lead.status?.shortDisplay ?? "?")")
+    }
+    
+    // Entry information
+    if let entryType = seeker.typeOfEntry {
+        print("Entry Type: \(entryType.displayName)")
+        print("Entry (short): \(entryType.shortDisplay)")
+    }
+    
+    // Demographic information
+    print("Marital Status: \(seeker.maritalStatus?.displayName ?? "N/A")")
+    print("Age Group: \(seeker.ageGroup ?? "N/A")")
+    
+    // Calculate age if date of birth is available
+    if let age = seeker.age {
+        print("Age: \(age)")
+    }
+}
+```
+
+### Lead Status Types
+
+CongregationKit provides type-safe lead status tracking:
+
+<AccordionGroup>
+  <Accordion title="Active Lead Statuses">
+    ```swift
+    LeadStatus.attempted        // Initial contact attempted
+    LeadStatus.followUp         // Needs first follow-up
+    LeadStatus.secondFollowUp   // Needs second follow-up
+    LeadStatus.thirdFollowUp    // Needs third follow-up
+    LeadStatus.fourthFollowUp   // Needs fourth follow-up
+    ```
+  </Accordion>
+
+  <Accordion title="Final Lead Statuses">
+    ```swift
+    LeadStatus.converted        // Successfully became member
+    LeadStatus.lost            // Lost contact or disengaged
+    LeadStatus.doNotContact    // Requested no contact
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Entry Types
+
+Track how seekers entered your church:
+
+```swift
+// Entry type tracking
+switch seeker.typeOfEntry {
+case .newVisitor:
+    print("First-time visitor - send welcome package")
+case .salvation:
+    print("Salvation decision - immediate follow-up")
+case .newVisitorSalvation:
+    print("First-time visitor with salvation - priority follow-up")
+case .comingBack:
+    print("Returning visitor - re-engagement strategy")
+default:
+    print("Other entry type")
+}
+```
+
+## Ministry Workflows
+
+### Follow-Up Prioritization
+
+```swift
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+// Prioritize by entry type
+let salvationSeekers = response.seekers.filter { 
+    $0.typeOfEntry == .salvation || $0.typeOfEntry == .newVisitorSalvation 
+}
+
+let newVisitors = response.seekers.filter { 
+    $0.typeOfEntry == .newVisitor 
+}
+
+let returningVisitors = response.seekers.filter { 
+    $0.typeOfEntry == .comingBack 
+}
+
+print("Priority Follow-ups:")
+print("- Salvation decisions: \(salvationSeekers.count)")
+print("- New visitors: \(newVisitors.count)")
+print("- Returning: \(returningVisitors.count)")
+```
+
+### Age-Based Ministry Assignment
+
+```swift
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 100,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+for seeker in response.seekers {
+    guard let ageGroup = seeker.ageGroup else { continue }
+    
+    switch ageGroup {
+    case "0-17":
+        print("\(seeker.fullName ?? "Seeker"): Children/Youth ministry")
+    case "18-25":
+        print("\(seeker.fullName ?? "Seeker"): Young adults ministry")
+    case "26-35":
+        print("\(seeker.fullName ?? "Seeker"): Young professionals ministry")
+    case "36-45":
+        print("\(seeker.fullName ?? "Seeker"): Family ministry")
+    case "46-55":
+        print("\(seeker.fullName ?? "Seeker"): Mature adults ministry")
+    case "56+":
+        print("\(seeker.fullName ?? "Seeker"): Senior adults ministry")
+    default:
+        print("\(seeker.fullName ?? "Seeker"): General ministry")
+    }
+}
+```
+
+### Follow-Up Status Tracking
+
+```swift
+// Track follow-up progress
+let allSeekers = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 500,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+var statusCounts: [String: Int] = [:]
+
+for seeker in allSeekers.seekers {
+    let status = seeker.lead?.status?.displayName ?? "Unknown"
+    statusCounts[status, default: 0] += 1
+}
+
+print("Follow-Up Status Report:")
+for (status, count) in statusCounts.sorted(by: { $0.key < $1.key }) {
+    print("\(status): \(count)")
+}
+```
+
+### Geographic Distribution
+
+```swift
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 500,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+var areaCounts: [String: Int] = [:]
+
+for seeker in response.seekers {
+    let area = seeker.area ?? "Unknown"
+    areaCounts[area, default: 0] += 1
+}
+
+print("Geographic Distribution:")
+for (area, count) in areaCounts.sorted(by: { $1 > $0 }) {
+    print("\(area): \(count) seekers")
+}
+```
+
+## Error Handling
+
+```swift
+do {
+    let seeker = try await congregation.seekers.fetch(identifier: "LEAD001")
+    print("Found seeker: \(seeker.fullName ?? "Unknown")")
+} catch SeekerError.seekerNotFound {
+    print("Seeker not found")
+} catch SeekerError.invalidIdentifier {
+    print("Invalid identifier format")
+} catch SeekerError.fetchFailed(let error) {
+    print("Failed to fetch seeker: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Non-Paginated Fetch
+
+For smaller datasets, you can fetch all seekers at once:
+
+```swift
+// Fetch all seekers (not recommended for large datasets)
+let allSeekers = try await congregation.seekers.fetchAll()
+print("Total seekers: \(allSeekers.count)")
+
+// Filter locally
+let prioritySeekers = allSeekers.filter { seeker in
+    seeker.lead?.status == .attempted || 
+    seeker.lead?.status == .followUp
+}
+
+print("Priority follow-ups: \(prioritySeekers.count)")
+```
+
+<Warning>
+  Use non-paginated fetches only for small datasets. For production systems with many seekers, always use paginated fetches to avoid memory issues.
+</Warning>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Prioritize by Entry Type" icon="list-ol">
+    Focus on salvation decisions and new visitors first for maximum impact.
+  </Card>
+  
+  <Card title="Track Follow-Up Status" icon="clipboard-check">
+    Regularly update lead status to maintain accurate follow-up queues.
+  </Card>
+  
+  <Card title="Use Age Groups" icon="users">
+    Leverage age group data for appropriate ministry placement and communication.
+  </Card>
+  
+  <Card title="Monitor Geographic Data" icon="map">
+    Use area information for regional outreach and event planning.
+  </Card>
+</CardGroup>
+
+## Response Metadata
+
+```swift
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+// Check pagination
+if response.isPaginated {
+    print("Response includes pagination metadata")
+}
+
+// Access pagination info
+if let (per, total, page) = response.paginationInfo {
+    print("Page \(page) of \(total / per + 1)")
+    print("Total seekers: \(total)")
+}
+
+// Check for errors
+if let error = response.error, error {
+    print("Error: \(response.message ?? "Unknown error")")
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fetching Members" icon="users" href="/guides/fetching-members">
+    Learn how to fetch and filter member data
+  </Card>
+  
+  <Card title="Working with Families" icon="people-group" href="/guides/working-with-families">
+    Learn how to track and manage family relationships
+  </Card>
+</CardGroup>

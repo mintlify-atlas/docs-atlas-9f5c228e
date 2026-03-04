@@ -1,0 +1,262 @@
+---
+title: Seeker
+description: Church seeker model with comprehensive contact, demographic, and lead management information
+---
+
+## Overview
+
+The `Seeker` struct represents a church seeker from Salesforce with comprehensive contact, demographic, and lead management information. It is the central data model for church seeker management, providing a complete representation of individuals who are exploring faith or considering church involvement.
+
+## Structure
+
+```swift
+public struct Seeker: SeekerDataRepresentable, Equatable, Sendable
+```
+
+### Conforms To
+
+- `SeekerDataRepresentable`
+- `Codable`
+- `Equatable`
+- `Sendable`
+
+## Properties
+
+### Core Identity
+
+<ResponseField name="id" type="String?">
+  The unique identifier for the seeker in the system.
+</ResponseField>
+
+<ResponseField name="fullName" type="String?">
+  The seeker's full name, used for personal communication and ministry planning. May be in local language or English depending on the data source.
+</ResponseField>
+
+### Lead Management
+
+<ResponseField name="lead" type="Lead?">
+  The lead information for the seeker, containing lead ID and status information for lead management and follow-up coordination.
+  
+  **Lead Structure:**
+  - `id: String?` - The unique identifier for the lead
+  - `status: LeadStatus?` - The status of the lead
+</ResponseField>
+
+### Contact Information
+
+<ResponseField name="email" type="String?">
+  The seeker's email address. Primary digital communication method for follow-up, newsletters, and event invitations.
+</ResponseField>
+
+<ResponseField name="phone" type="String?">
+  The seeker's phone number. Primary phone contact for follow-up calls, SMS messages, and urgent communications.
+</ResponseField>
+
+### Demographics
+
+<ResponseField name="dateOfBirth" type="Date?">
+  The seeker's date of birth, used for age calculation, demographic analysis, and age-appropriate ministry planning.
+</ResponseField>
+
+<ResponseField name="age" type="Int?" computed>
+  The seeker's calculated age (computed property). Automatically calculated from `dateOfBirth` taking into account whether they have had their birthday this year. Returns `nil` if date of birth is not available.
+</ResponseField>
+
+<ResponseField name="ageGroup" type="String?">
+  The seeker's age group classification. Automatically calculated from date of birth or provided directly. Used for demographic analysis and ministry placement.
+  
+  **Age Groups:**
+  - `"0-17"` - Children and youth
+  - `"18-25"` - Young adults
+  - `"26-35"` - Young professionals
+  - `"36-45"` - Middle adults
+  - `"46-55"` - Mature adults
+  - `"56+"` - Senior adults
+</ResponseField>
+
+<ResponseField name="maritalStatus" type="MaritalStatus?">
+  The seeker's marital status, used for appropriate ministry approaches and demographic analysis.
+  
+  **Possible Values:**
+  - `.single` - Single
+  - `.married` - Married
+  - `.widowed` - Widowed
+  - `.divorced` - Divorced
+  - `.separated` - Separated
+  - `.engaged` - Engaged
+  - `.notApplicable` - Not Applicable
+  - `.unmarried` - Unmarried
+  - `.other` - Other
+</ResponseField>
+
+### Geographic Information
+
+<ResponseField name="area" type="String?">
+  The seeker's area or locality. Geographic information used for regional ministry planning, event coordination, and pastoral visits.
+</ResponseField>
+
+### Entry Information
+
+<ResponseField name="typeOfEntry" type="TypeOfEntry?">
+  The type of entry for the seeker, indicating how the seeker entered the church system.
+  
+  **Possible Values:**
+  - `.comingBack` - "COMING BACK"
+  - `.salvation` - "SALVATION"
+  - `.newVisitor` - "NEW VISITOR"
+  - `.newVisitorSalvation` - "NEW VISITOR SALVATION"
+  - `.unknown` - Unknown type
+</ResponseField>
+
+<ResponseField name="createdDate" type="Date?">
+  The date the seeker was created. Used for follow-up timing, lead aging analysis, and ministry effectiveness tracking.
+</ResponseField>
+
+## Initializer
+
+```swift
+public init(
+    id: String? = nil,
+    lead: Lead? = nil,
+    fullName: String? = nil,
+    email: String? = nil,
+    phone: String? = nil,
+    dateOfBirth: Date? = nil,
+    ageGroup: String? = nil,
+    area: String? = nil,
+    typeOfEntry: TypeOfEntry? = nil,
+    maritalStatus: MaritalStatus? = nil,
+    createdDate: Date? = nil
+)
+```
+
+## Usage Example
+
+```swift
+// Create a seeker with comprehensive information
+let seeker = Seeker(
+    id: "12345",
+    lead: Lead(id: "LEAD001", status: .attempted),
+    fullName: "John Doe",
+    email: "john.doe@example.com",
+    phone: "+1234567890",
+    dateOfBirth: Date(),
+    area: "Downtown",
+    typeOfEntry: .newVisitor,
+    maritalStatus: .single
+)
+
+// Access lead information
+if let lead = seeker.lead {
+    print("Lead ID: \(lead.id ?? "Unknown")")
+    print("Lead status: \(lead.status?.displayName ?? "Unknown")")
+}
+
+// Access demographic information
+if let age = seeker.age {
+    print("Age: \(age)")
+}
+
+if let ageGroup = seeker.ageGroup {
+    print("Age group: \(ageGroup)")
+}
+
+// Use for ministry planning
+if let entryType = seeker.typeOfEntry {
+    switch entryType {
+    case .newVisitor:
+        print("New visitor - send welcome package")
+    case .salvation:
+        print("Salvation decision - immediate follow-up needed")
+    default:
+        print("Other entry type")
+    }
+}
+```
+
+## Integration with CongregationKit
+
+```swift
+// Fetch seekers with filtering
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    campus: .eastCampus,
+    leadStatus: .attempted
+)
+
+// Process seekers for ministry
+for seeker in response.seekers {
+    if let ageGroup = seeker.ageGroup {
+        switch ageGroup {
+        case "18-25":
+            print("Young adult ministry opportunity")
+        case "26-35":
+            print("Young professional ministry opportunity")
+        default:
+            print("Other age group ministry")
+        }
+    }
+}
+```
+
+## Supporting Types
+
+### Lead
+
+```swift
+public struct Lead: Codable, Sendable, Equatable {
+    public let id: String?
+    public let status: LeadStatus?
+}
+```
+
+### LeadStatus
+
+```swift
+public enum LeadStatus: String, Codable, CaseIterable, Sendable {
+    case attempted = "Attempted"
+    case followUp = "Follow-up"
+    case secondFollowUp = "2nd Follow up"
+    case thirdFollowUp = "3rd Follow up"
+    case fourthFollowUp = "4th Follow up"
+    case lost = "Lost"
+    case converted = "Converted"
+    case doNotContact = "Do not contact"
+    case unknown
+    
+    var displayName: String
+    var shortDisplay: String
+}
+```
+
+### TypeOfEntry
+
+```swift
+public enum TypeOfEntry: String, Codable, CaseIterable, Sendable {
+    case comingBack = "COMING BACK"
+    case salvation = "SALVATION"
+    case newVisitor = "NEW VISITOR"
+    case newVisitorSalvation = "NEW VISITOR SALVATION"
+    case unknown
+    
+    var displayName: String
+    var shortDisplay: String
+}
+```
+
+## Best Practices
+
+### Seeker Ministry Applications
+
+- **Immediate Follow-up:** Use `typeOfEntry` to prioritize follow-up actions
+- **Age-Appropriate Ministry:** Use `ageGroup` for ministry placement
+- **Geographic Coordination:** Use `area` data for regional ministry planning
+- **Contact Strategy:** Use multiple contact methods (email, phone) for reliable outreach
+
+### Data Entry
+
+- **Complete Information:** Provide as much information as possible for effective ministry
+- **Accurate Dates:** Use correct birth dates for accurate age calculations
+- **Lead Status Updates:** Keep lead status current for follow-up planning
+- **Contact Verification:** Verify contact information for reliable outreach

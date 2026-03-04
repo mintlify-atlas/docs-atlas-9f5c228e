@@ -1,0 +1,218 @@
+---
+title: FilesHandler
+description: Protocol for file operations in CongregationKit
+---
+
+## Overview
+
+The `FilesHandler` protocol provides methods for downloading files from Salesforce records. Use this handler to retrieve files associated with ContentDocument records in your Salesforce instance.
+
+## Protocol Definition
+
+```swift
+public protocol FilesHandler: Sendable {
+    func download(recordId: String) async throws -> FileDownloadResponse
+}
+```
+
+## Implementation
+
+### SalesforceFilesHandler
+
+The SDK provides `SalesforceFilesHandler` as the default implementation of the `FilesHandler` protocol.
+
+```swift
+public struct SalesforceFilesHandler: FilesHandler {
+    public init(
+        salesforceClient: SalesforceClient,
+        accessToken: String,
+        instanceUrl: String
+    )
+}
+```
+
+#### Parameters
+
+<ParamField path="salesforceClient" type="SalesforceClient" required>
+  The Salesforce client instance used for API requests
+</ParamField>
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token for authenticating with Salesforce
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL (e.g., "https://your-instance.salesforce.com")
+</ParamField>
+
+## Methods
+
+### download
+
+Downloads a file from Salesforce using a record ID.
+
+```swift
+func download(recordId: String) async throws -> FileDownloadResponse
+```
+
+#### Parameters
+
+<ParamField path="recordId" type="String" required>
+  The Salesforce record ID to download the file from. Must be a valid 15 or 18 character Salesforce ID.
+</ParamField>
+
+#### Returns
+
+Returns a `FileDownloadResponse` containing the file data and metadata.
+
+#### Throws
+
+Throws `FileDownloadError` if the download fails. See [Error Handling](#error-handling) for details.
+
+## Usage Example
+
+### Basic File Download
+
+```swift
+import CongregationKit
+
+let congregation = try await CongregationKit(
+    httpClient: httpClient,
+    credentials: credentials
+)
+
+// Download a file by record ID
+let response = try await congregation.files.download(
+    recordId: "a0x2w000002jxqn"
+)
+
+print("Downloaded: \(response.fullFilename)")
+print("Size: \(response.fileSize) bytes")
+print("Type: \(response.contentType)")
+
+// Access the file data
+let fileData = response.data
+```
+
+### Save Downloaded File to Disk
+
+```swift
+import Foundation
+
+let response = try await congregation.files.download(
+    recordId: "a0x2w000002jxqn"
+)
+
+let fileURL = URL(fileURLWithPath: "/path/to/save/\(response.fullFilename)")
+try response.data.write(to: fileURL)
+
+print("File saved to: \(fileURL.path)")
+```
+
+### Handle Different File Types
+
+```swift
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+switch response.fileExtension {
+case "pdf":
+    // Handle PDF file
+    processPDF(response.data)
+case "jpg", "jpeg", "png":
+    // Handle image file
+    processImage(response.data)
+case "docx", "doc":
+    // Handle document file
+    processDocument(response.data)
+default:
+    // Handle other file types
+    print("Unknown file type: \(response.fileExtension)")
+}
+```
+
+## Error Handling
+
+The `download` method throws `FileDownloadError` when operations fail:
+
+```swift
+do {
+    let response = try await congregation.files.download(
+        recordId: "invalid_id"
+    )
+    // Process file
+} catch FileDownloadError.fileNotFound {
+    print("File not found for the given record ID")
+} catch FileDownloadError.invalidRecordId {
+    print("Invalid record ID format")
+} catch FileDownloadError.noFilesAssociated {
+    print("No files are associated with this record")
+} catch FileDownloadError.contentVersionNotFound {
+    print("File content version not found")
+} catch FileDownloadError.invalidFileData {
+    print("Invalid file data received")
+} catch FileDownloadError.networkError(let error) {
+    print("Network error: \(error.localizedDescription)")
+} catch FileDownloadError.serverError(let message) {
+    print("Server error: \(message)")
+} catch FileDownloadError.downloadFailed(let error) {
+    print("Download failed: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+### FileDownloadError Cases
+
+<ResponseField name="fileNotFound" type="FileDownloadError">
+  The requested file was not found for the given record ID
+</ResponseField>
+
+<ResponseField name="invalidRecordId" type="FileDownloadError">
+  The record ID format is invalid (must be 15-18 alphanumeric characters)
+</ResponseField>
+
+<ResponseField name="invalidFileData" type="FileDownloadError">
+  The file data received is corrupted or invalid
+</ResponseField>
+
+<ResponseField name="downloadFailed" type="FileDownloadError">
+  The API request to download the file failed
+</ResponseField>
+
+<ResponseField name="noFilesAssociated" type="FileDownloadError">
+  No files are associated with the given record ID
+</ResponseField>
+
+<ResponseField name="contentVersionNotFound" type="FileDownloadError">
+  The file content version could not be found in Salesforce
+</ResponseField>
+
+<ResponseField name="networkError" type="FileDownloadError">
+  Network error occurred during file download
+</ResponseField>
+
+<ResponseField name="serverError" type="FileDownloadError">
+  Server error from Salesforce with error message
+</ResponseField>
+
+## Best Practices
+
+<Note>
+  **Record ID Validation**: Salesforce record IDs must be 15 or 18 characters long and contain only alphanumeric characters. The SDK automatically validates record IDs before making API requests.
+</Note>
+
+<Tip>
+  **Large Files**: For large file downloads, consider implementing progress tracking and handling potential timeout scenarios. The SDK uses async/await, which allows you to implement cancellation if needed.
+</Tip>
+
+<Warning>
+  **Memory Usage**: File data is loaded entirely into memory as `Data`. For very large files, consider streaming the data to disk incrementally to avoid memory issues.
+</Warning>
+
+## See Also
+
+- [FileDownloadResponse](/api/files/file-download-response) - Response struct containing file data and metadata
+- [File Operations Guide](/guides/file-operations) - Comprehensive guide to working with files
+- [Error Handling](/concepts/error-handling) - General error handling patterns

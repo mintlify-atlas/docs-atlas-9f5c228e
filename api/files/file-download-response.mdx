@@ -1,0 +1,374 @@
+---
+title: FileDownloadResponse
+description: Response struct containing file data and metadata from Salesforce
+---
+
+## Overview
+
+`FileDownloadResponse` is a response wrapper that encapsulates file download data from Salesforce. It contains the binary file data along with comprehensive metadata including filename, content type, size, and Salesforce identifiers.
+
+## Struct Definition
+
+```swift
+public struct FileDownloadResponse: Codable, Sendable {
+    public let data: Data
+    public let filename: String
+    public let fileExtension: String
+    public let contentType: String
+    public let fileSize: Int
+    public let recordId: String
+    public let contentDocumentId: String
+    
+    public var fullFilename: String { get }
+}
+```
+
+## Properties
+
+<ResponseField name="data" type="Data" required>
+  The binary file data as a Swift `Data` object. This contains the complete file contents and can be written to disk or processed in memory.
+</ResponseField>
+
+<ResponseField name="filename" type="String" required>
+  The filename of the downloaded file without the extension. For example, "WhatsApp Image 2024-06-09 at 8.39.03 PM" for an image file.
+</ResponseField>
+
+<ResponseField name="fileExtension" type="String" required>
+  The file extension without the dot. Common values include "pdf", "jpeg", "png", "docx", "xlsx", etc. May be empty string if the file has no extension.
+</ResponseField>
+
+<ResponseField name="contentType" type="String" required>
+  The MIME content type of the file as returned by Salesforce. Examples include:
+  - `"image/jpeg"` for JPEG images
+  - `"application/pdf"` for PDF documents
+  - `"application/vnd.openxmlformats-officedocument.wordprocessingml.document"` for DOCX files
+  - `"application/octet-stream"` for unknown/binary files
+</ResponseField>
+
+<ResponseField name="fileSize" type="Int" required>
+  The size of the file in bytes. This corresponds to `data.count` and represents the actual downloaded file size.
+</ResponseField>
+
+<ResponseField name="recordId" type="String" required>
+  The Salesforce record ID that was used to download the file. This is the same ID passed to the `download` method.
+</ResponseField>
+
+<ResponseField name="contentDocumentId" type="String" required>
+  The ContentDocument ID from Salesforce. This is the unique identifier for the document in Salesforce's ContentDocument system.
+</ResponseField>
+
+## Computed Properties
+
+### fullFilename
+
+Returns the complete filename with extension.
+
+```swift
+public var fullFilename: String { get }
+```
+
+Combines the `filename` and `fileExtension` properties into a complete filename. For example, if `filename` is "report" and `fileExtension` is "pdf", this returns "report.pdf".
+
+```swift
+let response = try await congregation.files.download(
+    recordId: "a0x2w000002jxqn"
+)
+
+print(response.fullFilename) // "WhatsApp Image 2024-06-09 at 8.39.03 PM.jpeg"
+```
+
+## Initializers
+
+### Primary Initializer
+
+```swift
+public init(
+    data: Data,
+    filename: String,
+    fileExtension: String,
+    contentType: String,
+    fileSize: Int,
+    recordId: String,
+    contentDocumentId: String
+)
+```
+
+Creates a new `FileDownloadResponse` with all properties explicitly set.
+
+<ParamField path="data" type="Data" required>
+  The binary file data
+</ParamField>
+
+<ParamField path="filename" type="String" required>
+  The filename without extension
+</ParamField>
+
+<ParamField path="fileExtension" type="String" required>
+  The file extension
+</ParamField>
+
+<ParamField path="contentType" type="String" required>
+  The MIME content type
+</ParamField>
+
+<ParamField path="fileSize" type="Int" required>
+  The file size in bytes
+</ParamField>
+
+<ParamField path="recordId" type="String" required>
+  The record ID used for download
+</ParamField>
+
+<ParamField path="contentDocumentId" type="String" required>
+  The ContentDocument ID from Salesforce
+</ParamField>
+
+### Convenience Initializer (HTTP Response)
+
+```swift
+public init?(
+    data: Data,
+    headers: [String: String],
+    recordId: String,
+    contentDocumentId: String
+)
+```
+
+Creates a `FileDownloadResponse` by parsing HTTP response headers. This initializer is failable and returns `nil` if required headers cannot be parsed.
+
+<ParamField path="data" type="Data" required>
+  The binary file data from the HTTP response body
+</ParamField>
+
+<ParamField path="headers" type="[String: String]" required>
+  HTTP response headers (case-insensitive). Looks for:
+  - `Content-Disposition`: To extract the filename
+  - `Content-Type`: To determine the MIME type
+</ParamField>
+
+<ParamField path="recordId" type="String" required>
+  The record ID used for download
+</ParamField>
+
+<ParamField path="contentDocumentId" type="String" required>
+  The ContentDocument ID from Salesforce
+</ParamField>
+
+## Usage Examples
+
+### Basic File Download
+
+```swift
+import CongregationKit
+
+let response = try await congregation.files.download(
+    recordId: "a0x2w000002jxqn"
+)
+
+print("Filename: \(response.fullFilename)")
+print("Size: \(response.fileSize) bytes")
+print("Type: \(response.contentType)")
+print("Extension: \(response.fileExtension)")
+print("Content Document ID: \(response.contentDocumentId)")
+```
+
+### Save File to Disk
+
+```swift
+import Foundation
+
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+// Create a file URL with the full filename
+let documentsURL = FileManager.default.urls(
+    for: .documentDirectory,
+    in: .userDomainMask
+).first!
+
+let fileURL = documentsURL.appendingPathComponent(response.fullFilename)
+
+// Write the file data to disk
+try response.data.write(to: fileURL)
+
+print("File saved to: \(fileURL.path)")
+```
+
+### Check File Size Before Processing
+
+```swift
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+let maxSizeInMB = 10
+let maxSizeInBytes = maxSizeInMB * 1024 * 1024
+
+if response.fileSize > maxSizeInBytes {
+    print("File is too large: \(response.fileSize) bytes")
+    // Handle large file scenario
+} else {
+    // Process file
+    processFile(response.data)
+}
+```
+
+### Handle Different Content Types
+
+```swift
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+switch response.contentType {
+case "application/pdf":
+    // Handle PDF
+    let pdfDocument = PDFDocument(data: response.data)
+    
+case "image/jpeg", "image/png", "image/gif":
+    // Handle image
+    #if canImport(UIKit)
+    let image = UIImage(data: response.data)
+    #elseif canImport(AppKit)
+    let image = NSImage(data: response.data)
+    #endif
+    
+case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    // Handle Word document
+    processWordDocument(response.data)
+    
+case "application/octet-stream":
+    // Unknown binary file
+    print("Binary file with extension: \(response.fileExtension)")
+    
+default:
+    print("Unsupported content type: \(response.contentType)")
+}
+```
+
+### Extract File Extension Category
+
+```swift
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+enum FileCategory {
+    case image, document, spreadsheet, presentation, video, audio, other
+}
+
+func categorizeFile(_ response: FileDownloadResponse) -> FileCategory {
+    switch response.fileExtension.lowercased() {
+    case "jpg", "jpeg", "png", "gif", "bmp", "svg":
+        return .image
+    case "pdf", "doc", "docx", "txt", "rtf":
+        return .document
+    case "xls", "xlsx", "csv":
+        return .spreadsheet
+    case "ppt", "pptx":
+        return .presentation
+    case "mp4", "mov", "avi", "mkv":
+        return .video
+    case "mp3", "wav", "aac", "flac":
+        return .audio
+    default:
+        return .other
+    }
+}
+
+let category = categorizeFile(response)
+print("File category: \(category)")
+```
+
+### Convert File Size to Human-Readable Format
+
+```swift
+extension FileDownloadResponse {
+    var formattedFileSize: String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(fileSize))
+    }
+}
+
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+print("File size: \(response.formattedFileSize)") // "2.5 MB"
+```
+
+## Conformance
+
+### Codable
+
+`FileDownloadResponse` conforms to `Codable`, allowing you to encode and decode instances:
+
+```swift
+import Foundation
+
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+// Encode to JSON
+let encoder = JSONEncoder()
+let jsonData = try encoder.encode(response)
+
+// Decode from JSON
+let decoder = JSONDecoder()
+let decodedResponse = try decoder.decode(
+    FileDownloadResponse.self,
+    from: jsonData
+)
+```
+
+<Note>
+  **Binary Data Encoding**: When encoding to JSON, the `data` property is base64-encoded automatically by Swift's `Codable` implementation.
+</Note>
+
+### Sendable
+
+`FileDownloadResponse` conforms to `Sendable`, making it safe to pass between concurrent contexts:
+
+```swift
+actor FileProcessor {
+    func process(_ response: FileDownloadResponse) async {
+        // Safe to use FileDownloadResponse in actor context
+        print("Processing \(response.fullFilename)")
+    }
+}
+
+let processor = FileProcessor()
+let response = try await congregation.files.download(
+    recordId: recordId
+)
+
+await processor.process(response) // Safe to pass across actor boundaries
+```
+
+## Best Practices
+
+<Tip>
+  **File Extension Handling**: The `fileExtension` property is extracted from the filename in the `Content-Disposition` header. Always check if it's empty before assuming a file type.
+</Tip>
+
+<Note>
+  **Filename Decoding**: Filenames are automatically URL-decoded and handle special characters like spaces (represented as "+" in URLs). For example, "WhatsApp+Image+2024-06-09+at+8.39.03+PM.jpeg" becomes "WhatsApp Image 2024-06-09 at 8.39.03 PM.jpeg".
+</Note>
+
+<Warning>
+  **Memory Considerations**: The entire file is loaded into memory as `Data`. For large files (>100MB), consider implementing streaming or chunked processing to avoid excessive memory usage.
+</Warning>
+
+<Tip>
+  **Content Type Fallback**: If the server doesn't provide a `Content-Type` header, the response defaults to `"application/octet-stream"`. Always check the file extension as an additional indicator of file type.
+</Tip>
+
+## See Also
+
+- [FilesHandler](/api/files/file-handler) - Protocol for downloading files
+- [File Operations Guide](/guides/file-operations) - Comprehensive guide to working with files
+- [Error Handling](/concepts/error-handling) - Handling file download errors

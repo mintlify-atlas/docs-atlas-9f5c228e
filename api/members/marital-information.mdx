@@ -1,0 +1,276 @@
+---
+title: "MaritalInformation"
+description: "Represents a member's marital information including status, anniversary, spouse, and children."
+---
+
+The `MaritalInformation` struct provides detailed family and relationship data for church members, supporting pastoral care, family ministry, and demographic analysis.
+
+## Properties
+
+<ResponseField name="maritalStatus" type="MaritalStatus?">
+  The member's marital status indicating their current relationship status.
+  
+  **Possible values:**
+  - `single` - Single
+  - `married` - Married
+  - `widowed` - Widowed
+  - `divorced` - Divorced
+  - `separated` - Separated
+  - `engaged` - Engaged
+  - `notApplicable` - Not Applicable
+  - `unmarried` - Unmarried
+  - `other` - Other
+</ResponseField>
+
+<ResponseField name="spouseName" type="String?">
+  The member's spouse's name. Used for couple ministry, pastoral care, and family ministry planning. Important for addressing both members of a couple appropriately.
+</ResponseField>
+
+<ResponseField name="numberOfChildren" type="Int?">
+  The number of children the member has. Used for family ministry planning, children's ministry coordination, and understanding the member's family context for pastoral care.
+</ResponseField>
+
+<ResponseField name="weddingAnniversaryInfo" type="WeddingAnniversaryInfo?">
+  Rich wedding anniversary information with calculations and multiple date formats.
+  
+  **Sub-properties:**
+  - `date: Date` - The original anniversary date
+  - `year: Int` - Year component
+  - `month: Int` - Month component
+  - `day: Int` - Day component
+  - `dayOfWeek: Int` - Day of the week (1 = Sunday, 7 = Saturday)
+  - `yearsOfMarriage: Int` - Number of years of marriage until now
+  - `daysUntilNextAnniversary: Int` - Days until next anniversary
+  - `shortFormat: String` - Date in "day/month" format (e.g., "9/10")
+  - `usFormat: String` - Date in "month/day" format (e.g., "10/9")
+  - `fullFormat: String` - Full date in "day/month/year" format (e.g., "9/10/2013")
+  - `isThisYear: Bool` - Whether the anniversary is this year
+</ResponseField>
+
+<ResponseField name="weddingAnniversaryDate" type="Date?">
+  The raw wedding anniversary date for direct access to the original Date object.
+</ResponseField>
+
+## Example Usage
+
+### Basic Access
+
+```swift
+let member = try await congregation.members.fetch(
+    id: MemberID(validating: "TKT123456"),
+    expanded: [.martialInformation]  // Note: spelled "martial" in API
+)
+
+if let marital = member.maritalInformation {
+    // Access marital status
+    if let status = marital.maritalStatus {
+        print("Status: \(status.displayName)")
+    }
+    
+    // Access spouse information
+    if let spouse = marital.spouseName {
+        print("Spouse: \(spouse)")
+    }
+    
+    // Access family size
+    if let children = marital.numberOfChildren {
+        print("Children: \(children)")
+    }
+}
+```
+
+### Anniversary Tracking
+
+```swift
+if let anniversary = member.maritalInformation?.weddingAnniversaryInfo {
+    // Access rich anniversary information
+    print("Anniversary date: \(anniversary.fullFormat)")
+    print("Years of marriage: \(anniversary.yearsOfMarriage)")
+    print("Next anniversary in: \(anniversary.daysUntilNextAnniversary) days")
+    
+    // Check if anniversary is coming soon
+    if anniversary.daysUntilNextAnniversary <= 30 {
+        print("Anniversary approaching! Plan celebration.")
+    }
+    
+    // Check if it's a milestone anniversary
+    let years = anniversary.yearsOfMarriage
+    if years % 5 == 0 {
+        print("Milestone anniversary: \(years) years!")
+    }
+    
+    // Use different date formats
+    print("Short format: \(anniversary.shortFormat)")     // "9/10"
+    print("US format: \(anniversary.usFormat)")           // "10/9"
+    print("Full format: \(anniversary.fullFormat)")       // "9/10/2013"
+}
+```
+
+### Ministry Planning
+
+```swift
+// Identify couples for couple ministry
+func identifyCouples(members: [Member]) -> [(Member, String)] {
+    return members.compactMap { member in
+        guard let marital = member.maritalInformation,
+              marital.maritalStatus == .married,
+              let spouse = marital.spouseName else {
+            return nil
+        }
+        return (member, spouse)
+    }
+}
+
+let couples = identifyCouples(members: allMembers)
+print("Found \(couples.count) married couples")
+
+// Identify families for family ministry
+func identifyFamiliesWithChildren(members: [Member]) -> [Member] {
+    return members.filter { member in
+        guard let children = member.maritalInformation?.numberOfChildren else {
+            return false
+        }
+        return children > 0
+    }
+}
+
+let familiesWithKids = identifyFamiliesWithChildren(members: allMembers)
+print("Found \(familiesWithKids.count) families with children")
+```
+
+### Anniversary Celebrations
+
+```swift
+// Find upcoming anniversaries
+func upcomingAnniversaries(members: [Member], within days: Int) -> [(Member, WeddingAnniversaryInfo)] {
+    return members.compactMap { member in
+        guard let anniversary = member.maritalInformation?.weddingAnniversaryInfo,
+              anniversary.daysUntilNextAnniversary <= days else {
+            return nil
+        }
+        return (member, anniversary)
+    }.sorted { $0.1.daysUntilNextAnniversary < $1.1.daysUntilNextAnniversary }
+}
+
+let upcoming = upcomingAnniversaries(members: allMembers, within: 30)
+print("Upcoming anniversaries in next 30 days:")
+for (member, anniversary) in upcoming {
+    print("  \(member.memberName ?? "Unknown"): \(anniversary.daysUntilNextAnniversary) days (\(anniversary.yearsOfMarriage) years)")
+}
+
+// Identify milestone anniversaries
+func milestoneAnniversaries(members: [Member]) -> [(Member, Int)] {
+    return members.compactMap { member in
+        guard let anniversary = member.maritalInformation?.weddingAnniversaryInfo else {
+            return nil
+        }
+        let years = anniversary.yearsOfMarriage
+        if [5, 10, 15, 20, 25, 30, 40, 50].contains(years) {
+            return (member, years)
+        }
+        return nil
+    }
+}
+
+let milestones = milestoneAnniversaries(members: allMembers)
+for (member, years) in milestones {
+    print("\(member.memberName ?? "Unknown"): \(years) year milestone!")
+}
+```
+
+### Family Ministry Segmentation
+
+```swift
+func segmentByFamilyStatus(members: [Member]) -> [String: [Member]] {
+    var segments: [String: [Member]] = [:]
+    
+    for member in members {
+        guard let marital = member.maritalInformation else { continue }
+        
+        let segment: String
+        if marital.maritalStatus == .married {
+            if let children = marital.numberOfChildren, children > 0 {
+                segment = "Married with children"
+            } else {
+                segment = "Married without children"
+            }
+        } else if marital.maritalStatus == .single {
+            segment = "Single"
+        } else if marital.maritalStatus == .engaged {
+            segment = "Engaged"
+        } else {
+            segment = "Other"
+        }
+        
+        segments[segment, default: []].append(member)
+    }
+    
+    return segments
+}
+
+let segments = segmentByFamilyStatus(members: allMembers)
+for (segment, members) in segments.sorted(by: { $0.value.count > $1.value.count }) {
+    print("\(segment): \(members.count) members")
+}
+```
+
+## Protocol Conformance
+
+The `Member` struct conforms to `MaritalInformationRepresentable`, allowing direct access:
+
+```swift
+// Access through member directly
+let status = member.maritalStatus           // Same as member.maritalInformation?.maritalStatus
+let anniversary = member.weddingAnniversary // Same as member.maritalInformation?.weddingAnniversaryInfo
+let spouse = member.spouseName              // Same as member.maritalInformation?.spouseName
+let children = member.numberOfChildren      // Same as member.maritalInformation?.numberOfChildren
+```
+
+## Date Formats
+
+The anniversary information provides multiple date formats:
+
+```swift
+if let anniversary = member.maritalInformation?.weddingAnniversaryInfo {
+    // Different formats for different contexts
+    let short = anniversary.shortFormat      // "9/10" - Compact UI display
+    let us = anniversary.usFormat            // "10/9" - US convention
+    let full = anniversary.fullFormat        // "9/10/2013" - Complete information
+    
+    // Use appropriate format based on context
+    print("Compact: \(short)")              // For tables and lists
+    print("US format: \(us)")               // For US audiences
+    print("Full date: \(full)")             // For detailed views
+}
+```
+
+## Best Practices
+
+### Family Ministry Applications
+
+- **Family Size Planning:** Use children count for family ministry programs
+- **Couple Ministry:** Use spouse information for couple-focused activities
+- **Anniversary Celebrations:** Use anniversary data for church celebrations
+- **Pastoral Care:** Use marital status for appropriate pastoral approaches
+
+### Anniversary Management
+
+- **30-Day Alerts:** Track anniversaries within 30 days for timely recognition
+- **Milestone Recognition:** Celebrate 5, 10, 15, 20, 25, 30, 40, 50-year milestones
+- **Personal Touch:** Include spouse name in anniversary communications
+- **Family Context:** Consider number of children for celebration planning
+
+### Data Entry
+
+- **Complete Information:** Provide spouse name and children count when available
+- **Accurate Dates:** Use correct anniversary dates for accurate calculations
+- **Status Updates:** Keep marital status current for ministry planning
+- **Family Changes:** Update children count as family size changes
+
+## See Also
+
+- [Member](/api/members/member) - Main member struct
+- [MemberExpand](/api/members/member-expand) - How to expand marital information
+- [ContactInformation](/api/members/contact-information) - Contact details
+- [DiscipleshipInformation](/api/members/discipleship-information) - Spiritual journey
+- [MembersHandler](/api/members/member-handler) - Fetching members with marital info

@@ -1,0 +1,657 @@
+---
+title: "CongregationKit"
+description: "High-level client for church Salesforce integration"
+---
+
+## Overview
+
+The `CongregationKit` client provides a simplified interface to Salesforce's APIs specifically designed for church management systems. It handles authentication and provides type-safe access to member data without conflicting with server framework authentication systems.
+
+Designed to work seamlessly with Vapor 4 and Hummingbird server frameworks.
+
+## Initialization
+
+### init(httpClient:credentials:)
+
+Creates a new CongregationKit client and authenticates with Salesforce.
+
+<ParamField path="httpClient" type="HTTPClient" required>
+  The AsyncHTTPClient instance to use for making requests
+</ParamField>
+
+<ParamField path="credentials" type="SalesforceCredentials" required>
+  The Salesforce credentials for authentication
+  
+  <Expandable title="SalesforceCredentials properties">
+    <ResponseField name="clientId" type="String">
+      OAuth client ID from your Salesforce connected app
+    </ResponseField>
+    <ResponseField name="clientSecret" type="String">
+      OAuth client secret from your Salesforce connected app
+    </ResponseField>
+    <ResponseField name="username" type="String">
+      Salesforce username for authentication
+    </ResponseField>
+    <ResponseField name="password" type="String">
+      Salesforce password for authentication
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="throws" type="SalesforceAuthError">
+  Throws if authentication fails during initialization
+</ResponseField>
+
+```swift
+import AsyncHTTPClient
+import CongregationKit
+
+let httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+let credentials = SalesforceCredentials(
+    clientId: "your_client_id",
+    clientSecret: "your_client_secret",
+    username: "your_username",
+    password: "your_password"
+)
+
+let congregation = try await CongregationKit(
+    httpClient: httpClient, 
+    credentials: credentials
+)
+```
+
+### init(httpClient:authResponse:)
+
+Creates a new CongregationKit client using pre-authenticated data.
+
+<ParamField path="httpClient" type="HTTPClient" required>
+  The AsyncHTTPClient instance to use for making requests
+</ParamField>
+
+<ParamField path="authResponse" type="SalesforceAuthResponse" required>
+  The pre-authenticated Salesforce response
+  
+  <Expandable title="SalesforceAuthResponse properties">
+    <ResponseField name="accessToken" type="String">
+      Access token for API authentication
+    </ResponseField>
+    <ResponseField name="instanceUrl" type="String">
+      Salesforce instance URL for API calls
+    </ResponseField>
+    <ResponseField name="id" type="String">
+      Identity URL for user identification
+    </ResponseField>
+    <ResponseField name="tokenType" type="String">
+      Token type (typically "Bearer")
+    </ResponseField>
+    <ResponseField name="issuedAt" type="String">
+      When the signature was created (Unix epoch seconds)
+    </ResponseField>
+    <ResponseField name="signature" type="String">
+      Base64-encoded HMAC-SHA256 signature
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+```swift
+// Use with pre-authenticated response
+let authResponse = SalesforceAuthResponse(
+    accessToken: "00D...",
+    instanceUrl: "https://your-instance.salesforce.com",
+    id: "https://login.salesforce.com/id/00D.../005...",
+    tokenType: "Bearer",
+    issuedAt: "1234567890",
+    signature: "base64-encoded-signature"
+)
+
+let congregation = CongregationKit(
+    httpClient: httpClient,
+    authResponse: authResponse
+)
+```
+
+## Properties
+
+### members
+
+Access member-related operations.
+
+<ResponseField name="members" type="MembersHandler">
+  The members handler for member operations
+</ResponseField>
+
+```swift
+// Fetch all members with pagination
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50
+)
+
+for member in response.members {
+    print("\(member.memberName ?? "Unknown") - \(member.phone ?? "No phone")")
+}
+
+// Fetch a specific member by ID
+let memberId = try MemberID(validating: "TKT123456")
+let member = try await congregation.members.fetch(id: memberId)
+print("Member: \(member.memberName ?? "Unknown")")
+
+// Fetch with expanded fields
+let memberWithDetails = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation, .employmentInformation]
+)
+```
+
+### seekers
+
+Access seeker-related operations.
+
+<ResponseField name="seekers" type="SeekersHandler">
+  The seekers handler for seeker operations
+</ResponseField>
+
+```swift
+// Fetch seekers with filters
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: .eastCampus,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+for seeker in response.seekers {
+    print("\(seeker.fullName ?? "Unknown") - \(seeker.lead?.status?.displayName ?? "No status")")
+}
+
+// Fetch a specific seeker by identifier
+let seeker = try await congregation.seekers.fetch(identifier: "LEAD001")
+print("Seeker: \(seeker.fullName ?? "Unknown")")
+```
+
+### files
+
+Access file download operations.
+
+<ResponseField name="files" type="FilesHandler">
+  The files handler for file operations
+</ResponseField>
+
+```swift
+// Download a file by record ID
+let fileResponse = try await congregation.files.download(recordId: "a0x2w000002jxqn")
+
+print("Downloaded: \(fileResponse.fullFilename)")
+print("Size: \(fileResponse.fileSize) bytes")
+print("Type: \(fileResponse.contentType)")
+
+// Save to disk
+try fileResponse.data.write(to: URL(fileURLWithPath: "/path/to/save/\(fileResponse.fullFilename)"))
+```
+
+## MembersHandler Methods
+
+### fetchAll(pageNumber:pageSize:)
+
+Fetches all members with pagination support.
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ResponseField name="returns" type="MemberResponse">
+  MemberResponse containing members and pagination info
+  
+  <Expandable title="MemberResponse structure">
+    <ResponseField name="members" type="[Member]">
+      Array of church members
+    </ResponseField>
+    <ResponseField name="metadata" type="Metadata?">
+      Pagination metadata including page, total, per, nextPageToken, previousPageToken
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="throws" type="MemberError">
+  Throws if operation fails
+</ResponseField>
+
+```swift
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 100
+)
+
+print("Total members: \(response.metadata?.total ?? 0)")
+print("Current page: \(response.metadata?.page ?? 0)")
+
+for member in response.members {
+    print(member.memberName ?? "Unknown")
+}
+```
+
+### fetchAll(pageNumber:pageSize:nextPageToken:)
+
+Fetches all members with cursor-based pagination support.
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="nextPageToken" type="String?">
+  The next page token for cursor-based pagination (optional)
+</ParamField>
+
+<ResponseField name="returns" type="MemberResponse">
+  MemberResponse containing members and pagination info
+</ResponseField>
+
+```swift
+// First page
+var response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    nextPageToken: nil
+)
+
+// Get next page using token
+if let nextToken = response.metadata?.nextPageToken {
+    response = try await congregation.members.fetchAll(
+        pageNumber: nil,
+        pageSize: 50,
+        nextPageToken: nextToken
+    )
+}
+```
+
+### fetchAll(pageNumber:pageSize:expanded:)
+
+Fetches all members with optional expanded fields.
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]" required>
+  Array specifying which related information to expand
+  
+  Options: `.contactInformation`, `.employmentInformation`, `.martialInformation`, `.discipleshipInformation`
+</ParamField>
+
+<ResponseField name="returns" type="MemberResponse">
+  MemberResponse containing members with expanded fields
+</ResponseField>
+
+```swift
+let response = try await congregation.members.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    expanded: [.contactInformation, .employmentInformation]
+)
+
+for member in response.members {
+    if let contact = member.contactInformation {
+        print("Email: \(contact.email ?? "None")")
+        print("Address: \(contact.address ?? "None")")
+    }
+    if let employment = member.employmentInformation {
+        print("Status: \(employment.employmentStatus?.rawValue ?? "Unknown")")
+    }
+}
+```
+
+### fetch(id:)
+
+Fetches a specific member by ID (type-safe, normalized).
+
+<ParamField path="id" type="MemberID" required>
+  The member ID to fetch (must start with TKT, case-insensitive normalization handled automatically)
+</ParamField>
+
+<ResponseField name="returns" type="Member">
+  The member if found
+</ResponseField>
+
+<ResponseField name="throws" type="MemberError">
+  Throws if operation fails or memberId is invalid
+</ResponseField>
+
+```swift
+let memberId = try MemberID(validating: "TKT123456")
+let member = try await congregation.members.fetch(id: memberId)
+
+print("Name: \(member.memberName ?? "Unknown")")
+print("Phone: \(member.phone ?? "No phone")")
+print("Campus: \(member.campus?.rawValue ?? "Unknown")")
+```
+
+### fetch(id:expanded:)
+
+Fetches a specific member by ID with optional expanded information.
+
+<ParamField path="id" type="MemberID" required>
+  The member ID to fetch
+</ParamField>
+
+<ParamField path="expanded" type="[MemberExpand]" required>
+  Array specifying which related information to expand
+</ParamField>
+
+<ResponseField name="returns" type="Member">
+  The member if found with expanded fields
+</ResponseField>
+
+```swift
+let memberId = try MemberID(validating: "TKT123456")
+let member = try await congregation.members.fetch(
+    id: memberId,
+    expanded: [.contactInformation, .discipleshipInformation]
+)
+
+if let discipleship = member.discipleshipInformation {
+    print("Baptized: \(discipleship.waterBaptism?.received ?? false)")
+    print("Serving: \(discipleship.serving?.involved?.displayName ?? "Not serving")")
+}
+```
+
+## SeekersHandler Methods
+
+### fetchAll(pageNumber:pageSize:seekerId:name:campus:leadStatus:email:leadId:contactNumber:)
+
+Fetches all seekers with pagination and optional filters.
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="seekerId" type="String?">
+  Filter by seeker ID (optional)
+</ParamField>
+
+<ParamField path="name" type="String?">
+  Filter by name (optional)
+</ParamField>
+
+<ParamField path="campus" type="Campus?">
+  Filter by campus (optional, type-safe)
+</ParamField>
+
+<ParamField path="leadStatus" type="LeadStatus?">
+  Filter by lead status (optional, type-safe)
+  
+  Options: `.attempted`, `.followUp`, `.secondFollowUp`, `.thirdFollowUp`, `.fourthFollowUp`, `.lost`, `.converted`, `.doNotContact`
+</ParamField>
+
+<ParamField path="email" type="String?">
+  Filter by email (optional)
+</ParamField>
+
+<ParamField path="leadId" type="String?">
+  Filter by lead ID (optional)
+</ParamField>
+
+<ParamField path="contactNumber" type="String?">
+  Filter by contact number (optional)
+</ParamField>
+
+<ResponseField name="returns" type="SeekerResponse">
+  SeekerResponse containing seekers and pagination info
+</ResponseField>
+
+```swift
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: "John",
+    campus: .eastCampus,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+for seeker in response.seekers {
+    print("\(seeker.fullName ?? "Unknown") - \(seeker.lead?.status?.displayName ?? "No status")")
+}
+```
+
+### fetch(identifier:)
+
+Fetches a specific seeker by identifier (leadId or phone, case-insensitive).
+
+<ParamField path="identifier" type="String" required>
+  The identifier to fetch (leadId or phone)
+</ParamField>
+
+<ResponseField name="returns" type="Seeker">
+  The seeker if found
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws if operation fails
+</ResponseField>
+
+```swift
+let seeker = try await congregation.seekers.fetch(identifier: "LEAD001")
+
+print("Name: \(seeker.fullName ?? "Unknown")")
+print("Email: \(seeker.email ?? "No email")")
+print("Status: \(seeker.lead?.status?.displayName ?? "Unknown")")
+```
+
+## FilesHandler Methods
+
+### download(recordId:)
+
+Downloads a file from Salesforce using a record ID.
+
+<ParamField path="recordId" type="String" required>
+  The record ID to download the file from (15-18 character alphanumeric Salesforce ID)
+</ParamField>
+
+<ResponseField name="returns" type="FileDownloadResponse">
+  File download response containing file data and metadata
+  
+  <Expandable title="FileDownloadResponse structure">
+    <ResponseField name="data" type="Data">
+      The binary file data
+    </ResponseField>
+    <ResponseField name="filename" type="String">
+      The filename of the downloaded file
+    </ResponseField>
+    <ResponseField name="fileExtension" type="String">
+      The file extension
+    </ResponseField>
+    <ResponseField name="contentType" type="String">
+      The MIME content type of the file
+    </ResponseField>
+    <ResponseField name="fileSize" type="Int">
+      The size of the file in bytes
+    </ResponseField>
+    <ResponseField name="recordId" type="String">
+      The record ID that was used to download the file
+    </ResponseField>
+    <ResponseField name="contentDocumentId" type="String">
+      The ContentDocument ID from Salesforce
+    </ResponseField>
+    <ResponseField name="fullFilename" type="String">
+      Computed property: filename with extension
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="throws" type="FileDownloadError">
+  Throws if download fails
+</ResponseField>
+
+```swift
+let fileResponse = try await congregation.files.download(recordId: "a0x2w000002jxqn")
+
+print("Downloaded: \(fileResponse.fullFilename)")
+print("Size: \(fileResponse.fileSize) bytes")
+print("Type: \(fileResponse.contentType)")
+
+// Save to disk
+let fileURL = URL(fileURLWithPath: "/path/to/save/\(fileResponse.fullFilename)")
+try fileResponse.data.write(to: fileURL)
+```
+
+## Complete Example
+
+```swift
+import AsyncHTTPClient
+import CongregationKit
+
+func main() async throws {
+    let httpClient = HTTPClient(eventLoopGroupProvider: .shared)
+    defer { try? httpClient.syncShutdown() }
+    
+    // Initialize with credentials
+    let credentials = SalesforceCredentials(
+        clientId: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_ID"]!,
+        clientSecret: ProcessInfo.processInfo.environment["SALESFORCE_CLIENT_SECRET"]!,
+        username: ProcessInfo.processInfo.environment["SALESFORCE_USERNAME"]!,
+        password: ProcessInfo.processInfo.environment["SALESFORCE_PASSWORD"]!
+    )
+    
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+    
+    // Fetch members
+    let memberResponse = try await congregation.members.fetchAll(
+        pageNumber: 1,
+        pageSize: 50,
+        expanded: [.contactInformation, .employmentInformation]
+    )
+    
+    print("Total members: \(memberResponse.metadata?.total ?? 0)")
+    
+    for member in memberResponse.members {
+        print("\(member.memberName ?? "Unknown")")
+        if let contact = member.contactInformation {
+            print("  Email: \(contact.email ?? "None")")
+        }
+    }
+    
+    // Fetch seekers
+    let seekerResponse = try await congregation.seekers.fetchAll(
+        pageNumber: 1,
+        pageSize: 50,
+        seekerId: nil,
+        name: nil,
+        campus: nil,
+        leadStatus: .followUp,
+        email: nil,
+        leadId: nil,
+        contactNumber: nil
+    )
+    
+    for seeker in seekerResponse.seekers {
+        print("Seeker: \(seeker.fullName ?? "Unknown")")
+        print("  Status: \(seeker.lead?.status?.displayName ?? "Unknown")")
+    }
+    
+    // Download a file
+    let file = try await congregation.files.download(recordId: "a0x2w000002jxqn")
+    try file.data.write(to: URL(fileURLWithPath: "/tmp/\(file.fullFilename)"))
+    print("Downloaded \(file.fullFilename)")
+}
+
+try await main()
+```
+
+## Error Handling
+
+```swift
+do {
+    let congregation = try await CongregationKit(
+        httpClient: httpClient,
+        credentials: credentials
+    )
+    
+    let member = try await congregation.members.fetch(
+        id: try MemberID(validating: "TKT123456")
+    )
+    print("Found member: \(member.memberName ?? "Unknown")")
+    
+} catch let error as SalesforceAuthError {
+    print("Authentication failed: \(error.localizedDescription)")
+} catch let error as MemberError {
+    switch error {
+    case .memberNotFound:
+        print("Member not found")
+    case .invalidMemberID:
+        print("Invalid member ID format")
+    case .fetchFailed(let underlying):
+        print("Fetch failed: \(underlying)")
+    default:
+        print("Member error: \(error.localizedDescription)")
+    }
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Type Definitions
+
+### MemberID
+
+Type-safe identifier for church members that validates and normalizes member IDs.
+
+```swift
+// Using the failable initializer
+if let memberId = MemberID(rawValue: "tkt123456") {
+    print(memberId.rawValue) // "TKT123456"
+}
+
+// Using the throwing initializer
+let memberId = try MemberID(validating: "TKT789012")
+```
+
+### Campus
+
+Enum representing church campuses.
+
+### LeadStatus
+
+Enum representing seeker lead status:
+- `.attempted`
+- `.followUp`
+- `.secondFollowUp`
+- `.thirdFollowUp`
+- `.fourthFollowUp`
+- `.lost`
+- `.converted`
+- `.doNotContact`
+
+### MemberExpand
+
+Enum specifying which related information to expand:
+- `.contactInformation`
+- `.employmentInformation`
+- `.martialInformation`
+- `.discipleshipInformation`

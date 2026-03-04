@@ -1,0 +1,404 @@
+---
+title: SeekersHandler
+description: Protocol for handling seeker operations with pagination and filtering support
+---
+
+## Overview
+
+The `SeekersHandler` protocol provides methods to fetch all seekers or specific seekers by identifier, with comprehensive support for pagination and filtering. The default implementation `SalesforceSeekersHandler` handles all seeker-related operations using the Salesforce API.
+
+## Protocol Definition
+
+```swift
+public protocol SeekersHandler: Sendable
+```
+
+## Methods
+
+### Fetch All Seekers (Paginated)
+
+Fetches all seekers with pagination and optional filters.
+
+```swift
+func fetchAll(
+    pageNumber: Int?,
+    pageSize: Int?,
+    seekerId: String?,
+    name: String?,
+    campus: Campus?,
+    leadStatus: LeadStatus?,
+    email: String?,
+    leadId: String?,
+    contactNumber: String?
+) async throws -> SeekerResponse
+```
+
+<ParamField path="pageNumber" type="Int?">
+  The page number to fetch (optional, default 1)
+</ParamField>
+
+<ParamField path="pageSize" type="Int?">
+  The page size to fetch (optional, default 50)
+</ParamField>
+
+<ParamField path="seekerId" type="String?">
+  Filter by seeker ID (optional)
+</ParamField>
+
+<ParamField path="name" type="String?">
+  Filter by name (optional)
+</ParamField>
+
+<ParamField path="campus" type="Campus?">
+  Filter by campus (optional, type-safe)
+  
+  **Possible Values:**
+  - `.eastCampus` - "East Campus"
+  - `.westCampus` - "West Campus"
+  - `.campusOne` - "Campus One"
+  - `.campusTwo` - "Campus Two"
+  - `.campusThree` - "Campus Three"
+  - `.campusFour` - "Campus Four"
+  - `.teenXYouth` - "Teen X Youth"
+  - `.hiTechCity` - "Hitech City"
+</ParamField>
+
+<ParamField path="leadStatus" type="LeadStatus?">
+  Filter by lead status (optional, type-safe)
+  
+  **Possible Values:**
+  - `.attempted`
+  - `.followUp`
+  - `.secondFollowUp`
+  - `.thirdFollowUp`
+  - `.fourthFollowUp`
+  - `.lost`
+  - `.converted`
+  - `.doNotContact`
+  - `.unknown`
+</ParamField>
+
+<ParamField path="email" type="String?">
+  Filter by email (optional)
+</ParamField>
+
+<ParamField path="leadId" type="String?">
+  Filter by lead ID (optional)
+</ParamField>
+
+<ParamField path="contactNumber" type="String?">
+  Filter by contact number (optional)
+</ParamField>
+
+<ResponseField name="returns" type="SeekerResponse">
+  A `SeekerResponse` containing seekers and pagination info
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws `SeekerError` if operation fails
+</ResponseField>
+
+### Fetch All Seekers (Cursor-based Pagination)
+
+Fetches all seekers with cursor-based pagination support using `nextPageToken`.
+
+```swift
+func fetchAll(
+    pageNumber: Int?,
+    pageSize: Int?,
+    nextPageToken: String?,
+    seekerId: String?,
+    name: String?,
+    campus: Campus?,
+    leadStatus: LeadStatus?,
+    email: String?,
+    leadId: String?,
+    contactNumber: String?
+) async throws -> SeekerResponse
+```
+
+<ParamField path="nextPageToken" type="String?">
+  The next page token for cursor-based pagination (optional)
+</ParamField>
+
+<Note>
+  All other parameters are the same as the paginated version above.
+</Note>
+
+### Fetch Seeker by Identifier
+
+Fetches a specific seeker by identifier (leadId or phone, case-insensitive).
+
+```swift
+func fetch(identifier: String) async throws -> Seeker
+```
+
+<ParamField path="identifier" type="String" required>
+  The identifier to fetch (leadId or phone number)
+</ParamField>
+
+<ResponseField name="returns" type="Seeker">
+  The seeker if found
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws `SeekerError.seekerNotFound` if seeker not found, or `SeekerError.invalidIdentifier` if identifier is invalid
+</ResponseField>
+
+### Fetch All Seekers (Non-paginated)
+
+Fetches all seekers without pagination.
+
+```swift
+func fetchAll() async throws -> [Seeker]
+```
+
+<ResponseField name="returns" type="[Seeker]">
+  Array of all seekers
+</ResponseField>
+
+<ResponseField name="throws" type="SeekerError">
+  Throws `SeekerError` if operation fails
+</ResponseField>
+
+## Implementation
+
+### SalesforceSeekersHandler
+
+The default implementation of `SeekersHandler` for Salesforce.
+
+```swift
+public struct SalesforceSeekersHandler: SeekersHandler {
+    public init(
+        salesforceClient: SalesforceClient,
+        accessToken: String,
+        instanceUrl: String
+    )
+}
+```
+
+<ParamField path="salesforceClient" type="SalesforceClient" required>
+  The Salesforce client instance
+</ParamField>
+
+<ParamField path="accessToken" type="String" required>
+  The OAuth access token for Salesforce API authentication
+</ParamField>
+
+<ParamField path="instanceUrl" type="String" required>
+  The Salesforce instance URL
+</ParamField>
+
+## Usage Examples
+
+### Basic Fetch with Pagination
+
+```swift
+import CongregationKit
+
+// Access the seekers handler through congregation
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    seekerId: nil,
+    name: nil,
+    campus: nil,
+    leadStatus: nil,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+print("Found \(response.seekers.count) seekers")
+if let metadata = response.metadata {
+    print("Page \(metadata.page ?? 0) of \(metadata.total ?? 0) total records")
+}
+```
+
+### Fetch with Filters
+
+```swift
+// Fetch seekers from East Campus with attempted status
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 20,
+    seekerId: nil,
+    name: nil,
+    campus: .eastCampus,
+    leadStatus: .attempted,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+for seeker in response.seekers {
+    print("Name: \(seeker.fullName ?? "Unknown")")
+    print("Lead Status: \(seeker.lead?.status?.displayName ?? "Unknown")")
+}
+```
+
+### Search by Name and Email
+
+```swift
+// Search for seekers with specific criteria
+let response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 10,
+    seekerId: nil,
+    name: "John",
+    campus: nil,
+    leadStatus: nil,
+    email: "john@example.com",
+    leadId: nil,
+    contactNumber: nil
+)
+```
+
+### Fetch Specific Seeker
+
+```swift
+// Fetch by lead ID
+let seeker = try await congregation.seekers.fetch(
+    identifier: "LEAD12345"
+)
+
+print("Found: \(seeker.fullName ?? "Unknown")")
+print("Email: \(seeker.email ?? "Not provided")")
+
+// Fetch by phone number
+let seekerByPhone = try await congregation.seekers.fetch(
+    identifier: "+1234567890"
+)
+```
+
+### Cursor-based Pagination
+
+```swift
+// First page
+var response = try await congregation.seekers.fetchAll(
+    pageNumber: 1,
+    pageSize: 50,
+    nextPageToken: nil,
+    seekerId: nil,
+    name: nil,
+    campus: .westCampus,
+    leadStatus: .followUp,
+    email: nil,
+    leadId: nil,
+    contactNumber: nil
+)
+
+// Process first page
+for seeker in response.seekers {
+    // Process seeker
+}
+
+// Fetch next page using token
+if let nextToken = response.metadata?.nextPageToken {
+    response = try await congregation.seekers.fetchAll(
+        pageNumber: nil,
+        pageSize: 50,
+        nextPageToken: nextToken,
+        seekerId: nil,
+        name: nil,
+        campus: .westCampus,
+        leadStatus: .followUp,
+        email: nil,
+        leadId: nil,
+        contactNumber: nil
+    )
+}
+```
+
+### Fetch All Seekers (Non-paginated)
+
+```swift
+// Get all seekers at once
+let allSeekers = try await congregation.seekers.fetchAll()
+
+print("Total seekers: \(allSeekers.count)")
+
+// Process all seekers
+for seeker in allSeekers {
+    if let entryType = seeker.typeOfEntry {
+        switch entryType {
+        case .salvation:
+            print("Salvation: \(seeker.fullName ?? "Unknown")")
+        case .newVisitor:
+            print("New Visitor: \(seeker.fullName ?? "Unknown")")
+        default:
+            break
+        }
+    }
+}
+```
+
+## Response Types
+
+### SeekerResponse
+
+```swift
+public struct SeekerResponse: Codable, Sendable {
+    public let seekers: [Seeker]
+    public let metadata: Metadata?
+    public let error: Bool?
+    public let message: String?
+    
+    public struct Metadata: Codable, Sendable {
+        public let per: Int?
+        public let total: Int?
+        public let page: Int?
+        public let nextPageToken: String?
+        public let previousPageToken: String?
+    }
+    
+    // Helper properties
+    public var isPaginated: Bool
+    public var paginationInfo: (per: Int, total: Int, page: Int)?
+}
+```
+
+## Error Handling
+
+### SeekerError
+
+```swift
+public enum SeekerError: Error, LocalizedError, Sendable {
+    case seekerNotFound
+    case invalidSeekerData
+    case fetchFailed(Error)
+    case invalidIdentifier
+}
+```
+
+**Error Cases:**
+
+- `seekerNotFound` - Seeker not found
+- `invalidSeekerData` - Invalid seeker data received
+- `fetchFailed(Error)` - Failed to fetch seeker data with underlying error
+- `invalidIdentifier` - Identifier must be a valid leadId or phone number
+
+### Example Error Handling
+
+```swift
+do {
+    let seeker = try await congregation.seekers.fetch(
+        identifier: "LEAD12345"
+    )
+    print("Found: \(seeker.fullName ?? "Unknown")")
+} catch SeekerError.seekerNotFound {
+    print("Seeker not found")
+} catch SeekerError.invalidIdentifier {
+    print("Invalid identifier provided")
+} catch SeekerError.fetchFailed(let error) {
+    print("Fetch failed: \(error.localizedDescription)")
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## See Also
+
+- [Seeker Model](/api/seekers/seeker)
+- [Members API](/api/members/member)
+- [Congregation](/api/congregationkit)
