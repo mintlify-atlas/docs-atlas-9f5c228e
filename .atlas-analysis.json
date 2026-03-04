@@ -1,0 +1,132 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "CongregationKit",
+  "projectDescription": "Swift SDK for type-safe, reliable Salesforce church data management and integration.",
+  "theme": "mint",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/field-expansion",
+              "concepts/error-handling"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/fetching-members",
+              "guides/working-with-families",
+              "guides/managing-seekers",
+              "guides/file-operations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Client",
+            "pages": [
+              "api/congregationkit",
+              "api/salesforce-client"
+            ]
+          },
+          {
+            "group": "Members",
+            "pages": [
+              "api/members/member",
+              "api/members/member-handler",
+              "api/members/member-expand",
+              "api/members/contact-information",
+              "api/members/employment-information",
+              "api/members/marital-information",
+              "api/members/discipleship-information"
+            ]
+          },
+          {
+            "group": "Families",
+            "pages": [
+              "api/families/family",
+              "api/families/family-handler",
+              "api/families/family-tree",
+              "api/families/relationship-types"
+            ]
+          },
+          {
+            "group": "Seekers",
+            "pages": [
+              "api/seekers/seeker",
+              "api/seekers/seeker-handler"
+            ]
+          },
+          {
+            "group": "Files",
+            "pages": [
+              "api/files/file-handler",
+              "api/files/file-download-response"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/salesforce-credentials",
+              "api/auth/salesforce-auth-response",
+              "api/auth/salesforce-auth-error"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Type-safe Salesforce authentication with async/await support",
+    "Comprehensive church member data models with field expansion",
+    "Family relationship tracking and management",
+    "Seeker (visitor) management and tracking",
+    "File operations for Salesforce content downloads",
+    "Rich date handling with age calculations and anniversary tracking",
+    "Discipleship journey tracking (baptism, courses, ministry involvement)",
+    "Support for macOS and iOS applications",
+    "Compatible with Vapor and Hummingbird server frameworks"
+  ],
+  "publicApiSurface": [
+    "CongregationKit",
+    "SalesforceClient",
+    "Member",
+    "MemberID",
+    "MemberExpand",
+    "ContactInformation",
+    "EmploymentInformation",
+    "MaritalInformation",
+    "DiscipleshipInformation",
+    "Family",
+    "FamilyTree",
+    "FamilyHandler",
+    "Seeker",
+    "MembersHandler",
+    "SeekersHandler",
+    "FilesHandler",
+    "SalesforceCredentials",
+    "SalesforceAuthResponse",
+    "SalesforceAuthError",
+    "MemberError",
+    "FileDownloadResponse"
+  ]
+}
